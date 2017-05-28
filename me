@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+curpath=/home/exbot/workspace/hehualin_ws/IARC_ShortestPath
+#tac $0 |sed -n 2p
+#sed '1!G;$!h;$!d' $0
+thisfile=me
+a=$(nl $thisfile | sed -n '2p')
+#b=$(nl $thisfile | sed -n '2p')
+len=$(expr ${#a} - 6)
+a=${a:7:$len}
+b=${a:0:8}$(pwd)
+
+#echo $a
+#echo $b
+
+if [ "$a"x != "$b"x ]
+then
+	sed -i "2c $b" $thisfile 
+    if [ -d devel ]; then
+        rm -r devel
+    fi
+    if [ -d build ]; then
+        rm -r build
+	fi
+    
+    if [ ! -d src ]; then
+        mkdir src
+    fi
+
+	source /opt/ros/indigo/setup.bash
+
+	catkin_make
+
+    if [ -f devel/setup.bash ]; then
+        source devel/setup.bash
+    fi
+	#echo $ROS_PACKAGE_PATH
+    echo "Source to workspace:"
+	echo $curpath
+	echo "Ok!"
+else	
+
+	source /opt/ros/indigo/setup.bash
+
+    if [ -f devel/setup.bash ]; then
+        source devel/setup.bash
+    else
+
+		catkin_make
+
+        if [ -f devel/setup.bash ]; then
+            source devel/setup.bash
+        fi
+    fi
+	#echo $ROS_PACKAGE_PATH
+    echo "Source to workspace:"
+	echo $curpath
+	echo "Ok!"	
+fi
+#end of file
+

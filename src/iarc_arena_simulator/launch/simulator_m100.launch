@@ -1,0 +1,6 @@
+<launch>
+	<node pkg="iarc_arena_simulator" type="iarc_arena_simulator_node_noise" name="iarc_arena_simulator_node_noise" required="true">
+	</node>
+	<node pkg="dji_sdk_demo" type="dji_sdk_client_m100" name="dji_sdk_client_m100" output="screen">
+	</node>
+</launch>

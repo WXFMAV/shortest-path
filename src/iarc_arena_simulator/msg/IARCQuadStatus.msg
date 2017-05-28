@@ -1,0 +1,17 @@
+# waypoint
+Header header
+uint32 seq
+uint32 tms
+float32 x
+float32 y
+float32 z
+float32 vx
+float32 vy
+float32 vz
+float32 ax
+float32 ay
+float32 az
+float32 q0
+float32 q1
+float32 q2
+float32 q3
