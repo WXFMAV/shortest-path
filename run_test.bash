@@ -11,13 +11,21 @@
 #rosrun dji_sdk_demo dji_sdk_test_bazier
 #python plot2.py
 
-cd test
-rosrun dji_sdk_demo dji_sdk_test_planner_path
-python plot_edgemap.py
+#cd test
+#rosrun dji_sdk_demo dji_sdk_test_planner_path
+#python plot_edgemap.py
 
 #rosrun dji_sdk_demo dji_sdk_test_bazier
 #python plot_bazier.py
-cd ..
+
+#rosrun dji_sdk_demo dji_sdk_test_graph
+#python plot_timecost_edge.py
+#python plot_timecost.py
+
+#cd ..
+
+rm ./build/test_results/*.*
+roslaunch iarc_arena_simulator simulator_cruise.launch
 
 echo "Complete!"
 

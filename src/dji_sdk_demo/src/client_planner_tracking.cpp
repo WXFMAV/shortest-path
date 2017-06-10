@@ -23,23 +23,27 @@ static ros::Publisher robotcmd_pub;
 static ros::Publisher mav_pub;
 static ros::Publisher quad_status_pub;
 static ros::Subscriber waypoints_list_sub;
+static ros::Subscriber tasks_list_sub;
 
 int GenerateQuadStatus(Quadrotor *theQuad, iarc_arena_simulator::IARCQuadStatus &quad_status);
 int GenerateUAVPath3(Quadrotor *theQuad, nav_msgs::Path &path);
 int GenerateUAVPose(Quadrotor *theQuad, geometry_msgs::PoseStamped &pose);
 void IARCWaypointsList_callback(const iarc_arena_simulator::IARCWaypointsList::ConstPtr& waypoints_list);
+void IARCTasksList_callback(const iarc_arena_simulator::IARCTasksList::ConstPtr & tasklist);
 
 int main(int argc, char **argv)
 {  
-    ros::init(argc, argv, "flight_control");
-    ros::NodeHandle nh;
-
-    arena_set_startnow();
-
     google::InitGoogleLogging(argv[0]);
     FLAGS_log_dir=ros::package::getPath("dji_sdk_demo")+"/../../build/test_results";
     std::cout<<FLAGS_log_dir<<std::endl;
     LOG(INFO) << "record info to this file";
+
+    ros::init(argc, argv, "flight_control");
+    ros::NodeHandle nh;
+
+    std::string filename =  ros::package::getPath("dji_sdk_demo")+"/../../build/test_results/rec_ast_tracking.txt";
+    arena_set_startnow2(filename);
+    LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
     robotcmd_pub = nh.advertise<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand", 10);
     path_pub = nh.advertise<nav_msgs::Path>("/iarc_arena/nav_path", 10);
@@ -47,6 +51,7 @@ int main(int argc, char **argv)
     quad_status_pub = nh.advertise<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus", 10);
     waypoints_path_pub = nh.advertise<nav_msgs::Path>("/iarc_arena/waypoints_path", 10);
     waypoints_list_sub = nh.subscribe<iarc_arena_simulator::IARCWaypointsList>("/iarc_arena/IARCWaypointsList", 10, IARCWaypointsList_callback);
+    tasks_list_sub = nh.subscribe<iarc_arena_simulator::IARCTasksList>("/iarc_arena/IARCTasksList",10,IARCTasksList_callback);
 
     if( theQuad.init(model_simulator, nh) < 0){
         LOG(ERROR) << "Quadrotor model init error!";
@@ -198,4 +203,11 @@ int GenerateUAVPose(Quadrotor *theQuad, geometry_msgs::PoseStamped &pose)
     pose.pose.orientation.z = 0.0;
     pose.pose.orientation.w = cos(-M_PI/4);
     return 0;
+}
+
+void IARCTasksList_callback(const iarc_arena_simulator::IARCTasksList::ConstPtr & tasklist)
+{
+    if(tasklist->list.size()!=0){
+        theTracker.update_taskslist(tasklist);
+    }
 }

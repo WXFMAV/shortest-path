@@ -28,6 +28,7 @@ PlannerTracking::PlannerTracking() {
     //_time_list.clear();
     _fp_tracking = NULL;
     _seq_saved = -1;
+    _saved_sent_cmd_task_seq = -1;
 }
 
 PlannerTracking::~PlannerTracking() {
@@ -67,6 +68,7 @@ int PlannerTracking::init()
     _seq_saved = -1;
     _pos_now = 0;
     _pos_end = 0;
+    _saved_sent_cmd_task_seq = -1;
     return 0;
 }
 int PlannerTracking::update_quad(Quadrotor *theQuad)
@@ -101,7 +103,7 @@ int PlannerTracking::update_waypoints_list(const iarc_arena_simulator::IARCWaypo
             wp[3] = wplist[k].vx; wp[4] = wplist[k].vy; wp[5] = wplist[k].vz;
             wp[6] = wplist[k].ax; wp[7] = wplist[k].ay; wp[8] = wplist[k].az;
 
-            LOG (INFO) <<"wp seq=" <<wplist[k].seq<< "wp time="<< wplist[k].tms << " wp="<< wp.transpose();
+           // LOG (INFO) <<"wp seq=" <<wplist[k].seq<< "wp time="<< wplist[k].tms << " wp="<< wp.transpose();
         }
     }
     if (add_k != 0)
@@ -146,10 +148,13 @@ iarc_arena_simulator::IARCWaypoint  PlannerTracking::get_waypoint_now()
 
     return wp_now;
 }
+
 int PlannerTracking::gen_control_cmd(IARC_COMMAND &cmd)
 {
     uint32_t time_now = arena_time_now();
     IARCWaypoint wp = get_waypoint_now();
+    IARCTask task = get_task_now();
+    uint32_t time_action = get_time_sendcmd(task);
     VectorXd wp_now = get_vector_from_waypoint(wp);
     VectorXd err_x = _state_x - wp_now ;
     VectorXd ref_x = VectorXd::Zero(state_n);
@@ -167,10 +172,14 @@ int PlannerTracking::gen_control_cmd(IARC_COMMAND &cmd)
     cmd.mav_vz = _control_u[2];
     cmd.mav_vyawdegree = 0.0;
 
-    if (wp.seq != _seq_saved)
+    if(task.robot_id != robot_none && task.robot_id !=robot_arena && task.robot_cmd != turn_none
+    		&& (time_action <=  time_now && _saved_sent_cmd_task_seq != task.task_seq))
+			//&& (situation_satisfied()))
     {
-    	cmd.robot_turn_id = wp.robot_id;
-    	cmd.robot_turn_kind = wp.robot_cmd;
+    	cmd.robot_turn_id = task.robot_id;
+    	cmd.robot_turn_kind = task.robot_cmd;
+    	_saved_sent_cmd_task_seq = task.task_seq;
+    	LOG(ERROR) <<" cmd sent! id = "<<(uint32_t)cmd.robot_turn_id;
     }
     else
     {
@@ -194,5 +203,6 @@ int PlannerTracking::gen_control_cmd(IARC_COMMAND &cmd)
                 _control_u[0], _control_u[1], _control_u[2], cmd.mav_vyawdegree,
 				cmd.robot_turn_id, cmd.robot_turn_kind);
     }
+
     return 0;
 }

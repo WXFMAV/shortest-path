@@ -35,6 +35,7 @@ uint32_t arena_time_now()
 //    ans_nsec=now.nsec>start.nsec?now.nsec-start.nsec:now.nsec+1e9-start.nsec;
     return uint32_t(((uint64_t)ans_sec)*1000+((uint64_t)ans_nsec)/1000000);
 }
+
 void arena_set_startnow()
 {
     if (visited){
@@ -45,11 +46,47 @@ void arena_set_startnow()
     visited = true;
 }
 
+void arena_set_startnow2(std::string filename)
+{
+	uint32_t sec = 0;
+	uint32_t nsec = 0;
+
+	if (visited){
+	        LOG(ERROR) << "arena time can only be set once!";
+	        return ;
+	}
+	int k =0;
+	for(k = 0 ; k<10; k++){
+		FILE* fp =fopen(filename.c_str(), "r");
+		if(fp != NULL){
+			fscanf(fp, "%ud %ud", &sec, &nsec);
+			fclose(fp);
+			break;
+		}
+	}
+	if(k >= 10){
+		LOG(ERROR) <<" start time file can not be opened!";
+		exit(-1);
+	}
+	time_start.sec = sec;
+	time_start.nsec = nsec;
+	visited = true;
+}
+
 double quaternion_to_theta_z(double q_w, double q_z)
 {
       double eq=0.0;
       eq=atan2(q_w,q_z);
       return M_PI-2*eq;
+}
+
+int theta2quaternion(double theta, double &w, double &x, double &y, double &z)
+{
+	x=0.0;
+	y=0.0;
+	z=cos((-theta+M_PI)/2);
+	w=sin((-theta+M_PI)/2);
+	return 0;
 }
 
 IARCTask make_task_type_reach(std::string frame_id, ros::Time stamp, double aimx,

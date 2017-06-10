@@ -1,0 +1,8 @@
+<launch>
+	<node pkg="dji_sdk_demo" type="dji_sdk_client_planner_tracking" name="dji_sdk_client_planner_tracking" output="screen">
+	</node>
+    <node pkg="dji_sdk_demo" type="dji_sdk_client_planner_path" name="dji_sdk_client_planner_path" output="screen">
+    </node>
+    <node pkg="dji_sdk_demo" type="dji_sdk_client_planner_decision" name="dji_sdk_client_planner_decision" output="screen">
+    </node>
+</launch>

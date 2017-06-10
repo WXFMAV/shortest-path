@@ -18,78 +18,81 @@
 #include <iarc_arena_simulator/IARCWaypoint.h>
 
 namespace PARAM{
-static double ros_rate_cruise = 5;
-static double ros_rate_decision = 5;
-static double ros_rate_path = 5;
-static double ros_rate_tracking = 50;
-static double map_memory_step_x = 1.0;
-static double map_memory_step_y = 1.0;
-static double map_memory_org_x = -10.0;
-static double map_memory_org_y = -10.0;
-static int cruise_circular_sample_count = 10;
-static double cruise_velocity = 1.0;
-static int m = 3; //controller input dimension (vx, vy, vz)  dim = 3
-static int n = 9; // state dimension. (x,y,z,vx,vy,vz,ax,ay,az) dim = 9
-static double const_tf = 0.33;   //constant time in lqr controller.
-static double arena_size = 20.0; // edge length of the arena. is 20.0 meters
-static double angle_field_rad = 120.0/180.0*M_PI;// field of angle.
-static int list_capacity = 5000;  //the max possible waypoint list length
-static int taskslist_capacity = 50; // the max possible tasks list length
-static uint32_t waypoint_dT_ms = 20; // time interval of waypoint.
-static double velocity_obs = 0.33; //velocity of obstacles
-static double velocity_tgt = 0.33; // velocity of targets
-static double velocity_mav_max = 2.0;
-static uint32_t task_period_ms = 1000; // task planning period
-static int tree_search_max_depth = 2; //search max depth
-static double tree_search_gama = 0.8; //gama
-static double tree_search_gama_theta = 0.01;
-static double tree_search_gama_distance = 0.01;
-static double tree_search_gama_inner = 0.01;
-static double ramda_t = 10.0;
-static double ramda_t_S = 1;
-static double ramda_t_E = -1;
-static double ramda_t_A = 1.0;
-static double ramda_t_SAE = 1.0;
-static double ramda_t_y = 1.0;
-static double ramda_t_theta = 0.5;
-static double ramda_m = 2.0;
-static double ramda_m_dis = 0.0;
-static double ramda_m_i_op = 1.0;
-static double ramda_o = 0.0;
-static double ramda_o_s = 0.0;
-static double ramda_o_a = 1.0;
-static double ramda_cruise = 0.2;
-static double radius_neary = 15.0;
-static double radius_collision = 1.0;
-static double radius_safe = 4.0;
-static int period_turn_ms = 20000;
-static int time_turn_180_ms = 2600;
-static int time_turn_45_ms = 650;
-static int time_cruise_det_ms = 10000; // cruise det time is 10000 ms
-static int obstacle_time_forget_ms = 10000;
-static int target_time_forget_ms = 40000;
-static bool shouldExpand[20]={0,0,1,0,1,
+static const double ros_rate_cruise = 5;
+static const double ros_rate_decision = 5;
+static const double ros_rate_path = 15;
+static const double ros_rate_tracking = 50;
+static const double map_memory_step_x = 1.0;
+static const double map_memory_step_y = 1.0;
+static const double map_memory_org_x = -10.0;
+static const double map_memory_org_y = -10.0;
+static const int cruise_circular_sample_count = 10;
+static const double cruise_velocity = 1.0;
+static const int m = 3; //controller input dimension (vx, vy, vz)  dim = 3
+static const int n = 9; // state dimension. (x,y,z,vx,vy,vz,ax,ay,az) dim = 9
+static const double const_tf = 0.33;   //constant time in lqr controller.
+static const double arena_size = 20.0; // edge length of the arena. is 20.0 meters
+static const double angle_field_rad = 120.0/180.0*M_PI;// field of angle.
+static const int list_capacity = 5000;  //the max possible waypoint list length
+static const int taskslist_capacity = 50; // the max possible tasks list length
+static const uint32_t waypoint_dT_ms = 20; // time interval of waypoint.
+static const double velocity_obs = 0.33; //velocity of obstacles
+static const double velocity_tgt = 0.33; // velocity of targets
+static const double velocity_mav_max = 2.0;
+static const uint32_t task_period_ms = 1000; // task planning period
+static const int tree_search_max_depth = 2; //search max depth
+static const double tree_search_gama = 0.8; //gama
+static const double tree_search_gama_theta = 0.01;
+static const double tree_search_gama_distance = 0.01;
+static const double tree_search_gama_inner = 0.01;
+static const double ramda_t = 10.0;
+static const double ramda_t_S = 1;
+static const double ramda_t_E = -1;
+static const double ramda_t_A = 1.0;
+static const double ramda_t_SAE = 1.0;
+static const double ramda_t_y = 1.0;
+static const double ramda_t_theta = 0.5;
+static const double ramda_m = 2.0;
+static const double ramda_m_dis = 0.0;
+static const double ramda_m_i_op = 1.0;
+static const double ramda_o = 0.0;
+static const double ramda_o_s = 0.0;
+static const double ramda_o_a = 1.0;
+static const double ramda_cruise = 0.2;
+static const double radius_neary = 15.0;
+static const double radius_collision = 1.0;
+static const double radius_safe = 2.0;
+static const int period_turn_ms = 20000;
+static const int time_turn_180_ms = 2600;
+static const int time_turn_45_ms = 650;
+static const int time_cruise_det_ms = 10000; // cruise det time is 10000 ms
+static const int time_turn_distinguish_ms = 1000;
+static const int obstacle_time_forget_ms = 10000;
+static const int target_time_forget_ms = 40000;
+static const bool shouldExpand[20]={0,0,1,0,1,
                                                         0,1,0,1,0,
                                                         1,0,0,1,0,
                                                         0,0,0,0,0};  //supposed expand time in every period.
-static bool shouldCruise[20]={0,0,0,0,1,
+static const bool shouldCruise[20]={0,0,0,0,1,
                                                         0,0,0,0,0,
                                                         0,1,0,0,1,
                                                         0,0,1,0,0};  //supposed expand time in every period.
-static bool target_mask[10]={1,1,1,1,1,1,1,0,0,0};
-static bool obstacle_mask[4]={ 1,1,1,1};
+static const bool target_mask[10]={1,1,1,1,1,1,1,1,1,1};
+static const bool obstacle_mask[4]={ 1,1,1,1};
 
-static int edge_num_direction = 8;
-static double edge_angle_limited = M_PI/2.0;
-static int edge_offx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
-static int edge_offy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-static double edge_weight[8] = {1.0, 1.4, 1.0, 1.4, 1.0, 1.4, 1.0, 1.4};//by 0.1 meters
-static double edge_velocity_static = 0.10;
-static double edge_nosolution_jump = 1e5;
-static double edge_coef_angle = 0.001;
-static double edge_angle_de = M_PI/4.0;   //keep this param the same as 'de'
+static const int edge_num_direction = 8;
+static const double edge_angle_limited = M_PI/2.0;
+static const int edge_offx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
+static const int edge_offy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+static const double edge_weight[8] = {1.0, 1.4, 1.0, 1.4, 1.0, 1.4, 1.0, 1.4};//by 0.1 meters
+static const double edge_velocity_static = 0.10;
+static const double edge_time_one_edge = 1.0;
+static const double edge_nosolution_jump = 1e5;
+static const double edge_coef_angle = 0.001;
+static const double edge_angle_de = M_PI/4.0;   //keep this param the same as 'de'
+static const double edge_bazier_rate = 0.1;
 #define de (M_PI/4.0)
-static double edge_angel[8][8]={
+static const double edge_angel[8][8]={
 		{de * +0.0, de * +1.0, de * +2.0, de * +3.0, de * +4.0, de * +5.0, de * +6.0, de * +7.0},
 	    {de * -1.0, de * +0.0, de * +1.0, de * +2.0, de * +3.0, de * +4.0, de * +5.0 , de * +6.0 },
 		{de * -2.0, de * -1.0, de * +0.0, de * +1.0, de * +2.0, de * +3.0, de * +4.0, de * +5.0},
@@ -101,18 +104,19 @@ static double edge_angel[8][8]={
 };
 #undef de
 
-static std::string str_arena_frame = "/arena_frame";
-static std::string file_name_lqr_plist = ros::package::getPath("dji_sdk_demo")+"/params/plist.txt";
-static std::string file_name_tracking = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results" +"/rec_tracking.txt";
-static std::string file_name_path = ros::package::getPath("dji_sdk_demo") + "/../../build/test_results"+"/rec_path.txt";
-static std::string file_name_path_env = ros::package::getPath("dji_sdk_demo") + "/../../build/test_results"+"/rec_path_env.txt";
-static std::string file_name_task = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_task.txt";
-static std::string file_name_task_env = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_task_env.txt";
-static std::string file_name_map = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_map.txt";
-static std::string file_name_bazier_in = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/bazier_in.txt";
-static std::string file_name_bazier_out = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/bazier_out.txt";
-static std::string file_name_edgemap = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/edgemap_out.txt";
-static std::string file_name_edgepath = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/edgepath_out.txt";
+static const std::string str_arena_frame = "/arena_frame";
+static const std::string file_name_lqr_plist = ros::package::getPath("dji_sdk_demo")+"/params/plist.txt";
+static const std::string file_name_tracking = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results" +"/rec_tracking.txt";
+static const std::string file_name_path = ros::package::getPath("dji_sdk_demo") + "/../../build/test_results"+"/rec_path.txt";
+static const std::string file_name_path_env = ros::package::getPath("dji_sdk_demo") + "/../../build/test_results"+"/rec_path_env.txt";
+static const std::string file_name_task = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_task.txt";
+static const std::string file_name_task_env = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_task_env.txt";
+static const std::string file_name_map = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"+"/rec_map.txt";
+static const std::string file_name_bazier_in = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/bazier_in.txt";
+static const std::string file_name_bazier_out = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/bazier_out.txt";
+static const std::string file_name_edgemap = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/edgemap_out.txt";
+static const std::string file_name_edgepath = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/edgepath_out.txt";
+static const std::string file_name_timecost = ros::package::getPath("dji_sdk_demo")+"/../../test/"+"/timecost_out.txt";
 }
 
 #define N_OBS 4
@@ -286,7 +290,9 @@ typedef struct IARC_COMMAND{
 
 uint32_t arena_time_now();
 void arena_set_startnow();
+void arena_set_startnow2(std::string filename);
 double quaternion_to_theta_z(double q_w, double q_z);
+int theta2quaternion(double theta, double &w, double &x, double &y, double &z);
 iarc_arena_simulator::IARCTask make_task_type_reach(std::string frame_id,
         ros::Time stamp, double aimx,
         double aimy, double aimz, uint32_t start_time_ms, uint32_t aim_time_ms);

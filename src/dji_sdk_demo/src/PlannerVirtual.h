@@ -34,6 +34,9 @@ public:
     uint32_t _latest_cmdtime;
     uint32_t _latest_cmd_continue_time;
     iarc_arena_simulator::IARCCommand _latest_cmd;
+    std::vector< iarc_arena_simulator::IARCTask> _tasks_list;
+    uint32_t _tasks_pos_now;
+    uint32_t _tasks_pos_end;
 
 public:
 	PlannerVirtual();
@@ -43,6 +46,8 @@ public:
     int update_tgt(const geometry_msgs::PoseArray::ConstPtr& targets);
     int update_latest_cmdtime(const iarc_arena_simulator::IARCCommand::ConstPtr& cmd);
     int update_map_memory();
+    int update_taskslist(const iarc_arena_simulator::IARCTasksList::ConstPtr &taskslist);
+    iarc_arena_simulator::IARCTask get_task_now();
     int arena2map(double x, double y, int &x_i, int &y_i);
     int map2arena(int x_i, int y_i, double &x, double &y);
     bool in_grid_map(int xi, int yi);
@@ -65,8 +70,19 @@ public:
     int get_k_of_edge_id(int id);
     int get_nodes_edge_id(int ki, int xi, int yi);
     int get_edge_first_grid_by_id(int id, int &xi, int &yi);
+    int get_edge_second_grid_by_id(int id, int &xi, int &yi);
+    int get_array_obstacles(geometry_msgs::PoseArray &obstacles);
+    int get_array_targets(geometry_msgs::PoseArray &targets);
     bool edge_in_safe_area(int xi1, int yi1, int xi2, int yi2);
+    bool segment_in_safe_area(double x1, double y1, double x2, double y2);
+    bool grid_in_safe_area(int xi, int yi);
     int segment_in_circle(IARC_POSITION *p1, IARC_POSITION *p2, IARC_POSITION O, double r);
+    double norm(double x, double y);
+    int make_history_point(double &lx, double &ly);
+    bool is_quad_still_now();
+    double get_current_moving_direction();
+    bool is_turning_now();
+
 };
 
 #endif /* DJI_SDK_DEMO_SRC_PLANNERVIRTUAL_H_ */

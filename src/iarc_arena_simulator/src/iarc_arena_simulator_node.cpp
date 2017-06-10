@@ -1,5 +1,7 @@
 #include "iarc_arena_simulator_node.h"
 #include <math.h>
+#include<glog/logging.h>
+
 using namespace iarc_arena_simulator;
 using namespace std;
 static ros::Time time_start;
@@ -11,6 +13,74 @@ static geometry_msgs::Pose obs[N_OBS];
 static geometry_msgs::Pose trg[N_TRG];
 
 uint32_t TimePassedMs(ros::Time start,ros::Time now);
+
+static bool visited = false;
+uint32_t arena_time_now()
+{
+    if (!visited){
+        LOG(ERROR) << "arena start time not set!";
+        return 0;
+    }
+    ros::Time now = ros::Time::now();
+    if(now.sec<time_start.sec) return 0;
+    uint32_t ans_sec,ans_nsec;
+    ans_sec=now.sec-time_start.sec;
+    if(now.nsec>time_start.nsec)
+    {
+          ans_nsec=now.nsec-time_start.nsec;
+    }
+    else
+    {
+          ans_nsec=now.nsec+1e9-time_start.nsec;
+          ans_sec--;
+    }
+//    ans_nsec=now.nsec>start.nsec?now.nsec-start.nsec:now.nsec+1e9-start.nsec;
+    return uint32_t(((uint64_t)ans_sec)*1000+((uint64_t)ans_nsec)/1000000);
+}
+void arena_set_startnow()
+{
+    if (visited){
+        LOG(ERROR) << "arena time can only be set once!";
+        return ;
+    }
+    time_start = ros::Time::now();
+
+    //ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"
+
+    std::string filename = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results/rec_ast_tracking.txt";
+    FILE * fp = fopen(filename.c_str(),"w");
+    if(fp == NULL){
+    	printf(" error to open file for write:%s\n", filename.c_str());
+    	exit(-1);
+    }
+    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fflush(fp);
+    fclose(fp);
+
+    filename = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results/rec_ast_path.txt";
+    fp = fopen(filename.c_str(),"w");
+    if(fp == NULL){
+    	printf(" error to open file for write:%s\n", filename.c_str());
+    	exit(-1);
+    }
+    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fflush(fp);
+    fclose(fp);
+
+    filename = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results/rec_ast_cruise.txt";
+    fp = fopen(filename.c_str(),"w");
+    if(fp == NULL){
+    	printf(" error to open file for write:%s\n", filename.c_str());
+    	exit(-1);
+    }
+    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fflush(fp);
+    fclose(fp);
+
+    printf("start time seted!\n");
+    visited = true;
+}
+
 
 
 bool near_mav(uint32_t robot_id)
@@ -58,7 +128,7 @@ void IARCQuadStatus_callback(const iarc_arena_simulator::IARCQuadStatus::ConstPt
 uint32_t TimePassedMs(ros::Time start,ros::Time now)
 {
       if(now.sec<start.sec) return 0;
-      uint32_t ans_sec,ans_nsec;
+      uint32_t ans_sec, ans_nsec;
       ans_sec=now.sec-start.sec;
       if(now.nsec>start.nsec)
       {
@@ -82,9 +152,18 @@ bool OutofBound(geometry_msgs::Pose pos)
 }
 int main(int argc,char **argv)
 {
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_log_dir= ros::package::getPath("dji_sdk_demo")+"/../../build/test_results";
+    std::cout<<FLAGS_log_dir<<std::endl;
+    LOG(INFO) << "record info to this file";
+
     ros::init(argc, argv, "iarc_arena");
     ros::NodeHandle nh;
+
     time_start=ros::Time::now();
+    arena_set_startnow();
+
+    LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
     ros::Publisher obstacles_pub = 
     	nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles", 10);
@@ -151,13 +230,13 @@ int main(int argc,char **argv)
     ros::Rate r(30);
     float dT=1/30.0;
     int cnt=0;
-    
-    
+
     while(ros::ok())
     {   
         if (TimePassedMs(time_start,ros::Time::now())>600000)
            break;
         cnt++;
+
     	geometry_msgs::PoseArray obstacles;
     	geometry_msgs::PoseArray targets;
     	obstacles.header.frame_id = "/arena_frame";    	    	    	
@@ -268,6 +347,18 @@ int main(int argc,char **argv)
     	
     	obstacles_pub.publish(obstacles);
     	targets_pub.publish(targets);
+
+#ifdef quit_when_collision
+    	bool collision = false;
+    	for(int k = 0; k< obstacles.poses.size(); k++)
+    	{
+    		if((obstacles.poses[k].position.x - quad_status.x)*(obstacles.poses[k].position.x - quad_status.x)+(obstacles.poses[k].position.y - quad_status.y)*(obstacles.poses[k].position.y - quad_status.y) < 1.0){
+    			collision = true;
+    			break;
+    		}
+    	}
+    	if (collision) break;
+#endif
 
     	if(fp!=NULL)
     	{

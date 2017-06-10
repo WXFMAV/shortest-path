@@ -15,10 +15,11 @@
 #include "G_Controller_LQR.h"
 #include "G_Controller_PID.h"
 #include <vector>
+#include "PlannerVirtual.h"
 
 enum enum_controller{none,lqr,pid};
 
-class PlannerTracking {
+class PlannerTracking : public PlannerVirtual{
 public:
     PlannerTracking();
     virtual ~PlannerTracking();
@@ -44,6 +45,7 @@ public:
     uint32_t _pos_now;
     uint32_t _pos_end;
     uint32_t _seq_saved;
+    uint32_t _saved_sent_cmd_task_seq;
 private:
     FILE *_fp_tracking;
 };

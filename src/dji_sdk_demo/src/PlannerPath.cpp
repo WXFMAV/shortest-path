@@ -17,8 +17,6 @@ using namespace std;
 using namespace iarc_arena_simulator;
 
 #define waypoint_dT_ms  PARAM::waypoint_dT_ms
-#define taskslist_capacity PARAM::taskslist_capacity
-#define task_period_ms  PARAM::task_period_ms
 
 PlannerPath::PlannerPath() {
     // TODO Auto-generated constructor stub
@@ -31,10 +29,7 @@ PlannerPath::PlannerPath() {
 
     _fp_path = NULL;
     _fp_path_env = NULL;
-    _pos_now = 1;
-    _pos_end = 0;
     _task_seq_saved = -1;
-    _tasks_list.clear();
 }
 
 PlannerPath::~PlannerPath() {
@@ -52,16 +47,14 @@ PlannerPath::~PlannerPath() {
 int PlannerPath::init()
 {
     _status = OK;
-    _planner = PureTracking;
+    //_planner = PureTracking;
+    _planner = Dijkstra;
     //_planner = BiBFS;
     _wp_seq = 0;
     memset(&_quad_status, 0, sizeof(_quad_status));
     _tgt_status.clear();
     _obs_status.clear();
-    _pos_now = 1;
-    _pos_end = 0;
     _task_seq_saved = -1;
-    _tasks_list.resize(taskslist_capacity);
 
     _fp_path = fopen(PARAM::file_name_path.c_str(),"w");
     if( _fp_path ==NULL){
@@ -93,6 +86,8 @@ int PlannerPath::plan(iarc_arena_simulator::IARCWaypointsList &wplist)
         return -1;
     }
 
+    uint32_t t1 = arena_time_now();
+    LOG(INFO) <<"[ plan start ]t1= "<<t1;
     switch(_planner)
     {
     case test:{
@@ -108,14 +103,21 @@ int PlannerPath::plan(iarc_arena_simulator::IARCWaypointsList &wplist)
     case PureTracking:{
          plan_PureTracking(wplist);
     }break;
+    case Dijkstra:{
+    	plan_djikstra(wplist);
+    }break;
+    default:{
+
+    	LOG(ERROR) <<" Unknow planner!";
+    }
     }
 
     LOG(INFO) << "plan finished wplist size = "<<wplist.list.size() << "time now= "<<arena_time_now();
     if (_fp_path != NULL){
         uint32_t time_now = arena_time_now();
-        fprintf(_fp_path , "%d %d ", time_now, wplist.list.size());
+        fprintf(_fp_path , "%d %d \n", time_now, wplist.list.size());
         for(int k = 0; k< wplist.list.size(); k++){
-            fprintf(_fp_path, "( %d %d %d (%.2lf %.2lf %.2lf) (%.2lf %.2lf %.2lf) (%.2lf %.2lf %.2lf)) ",
+            fprintf(_fp_path, "( %d %d %d (%.2lf %.2lf %.2lf) (%.2lf %.2lf %.2lf) (%.2lf %.2lf %.2lf)) \n",
                     k, wplist.list[k].seq, wplist.list[k].tms,
                     wplist.list[k].x, wplist.list[k].y, wplist.list[k].z,
                     wplist.list[k].vx, wplist.list[k].vy, wplist.list[k].vz,
@@ -123,6 +125,9 @@ int PlannerPath::plan(iarc_arena_simulator::IARCWaypointsList &wplist)
         }
         fprintf(_fp_path,"\n");
     }
+
+    uint32_t t2 = arena_time_now();
+    LOG(INFO) <<"[ plan end  ]t2= "<<t2<<" t2-t1 = "<<t2 - t1;
     return 0;
 }
 int PlannerPath::planner_test(iarc_arena_simulator::IARCWaypointsList &wplist)
@@ -202,86 +207,6 @@ vector<double> PlannerPath::get_diff(std::vector<double> a, std::vector<double> 
     }
     da.push_back(da[sz-2]);
     return da;
-}
-
-int PlannerPath::update_taskslist(const iarc_arena_simulator::IARCTasksList::ConstPtr &taskslist)
-{
-
-    int m = ((iarc_arena_simulator::IARCTasksList)(*taskslist)).list.size();
- #define taskslist ((iarc_arena_simulator::IARCTasksList)(*taskslist)).list
-
-     uint32_t time_now = arena_time_now();
-     uint32_t add_k = 0;
-
-     for (int k = 0; k<m; k++){
-         if (taskslist[k].time_end > time_now){
-             _tasks_list[(_pos_now+add_k)% taskslist_capacity] = taskslist[k];
-
-             if ( _tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start < time_now){
-            	 _tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start = time_now;
-             }
-
-             _tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start =
-                     (_tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start >time_now?
-                             _tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start :time_now);
-             LOG (INFO) <<"pos = "<<_pos_now + add_k<< " task seq=" <<taskslist[k].task_seq<< "start time="
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].time_start  << " end time="
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].time_end <<" task type="
-                     <<(uint32_t)_tasks_list[(_pos_now+add_k)% taskslist_capacity].task_type <<" task value="
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].task_value<<"robot id ="
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].robot_id<< "robot cmd="
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].robot_cmd<<"pos =("
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].final_pose.position.x<< ","
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].final_pose.position.y<<","
-                     <<_tasks_list[(_pos_now+add_k)% taskslist_capacity].final_pose.position.z<<")";
-             add_k++;
-         }
-     }
-     if (add_k != 0)
-     {
-         //a new path list is generated.
-         _pos_end = _pos_now + add_k-1;
-     }
-     if ( _pos_end - _pos_now > taskslist_capacity){
-         LOG(ERROR) << "list capacity too small , or tasks list too large to be stored!";
-         _pos_now = _pos_end - taskslist_capacity;
-     }
-     LOG(INFO) << "tasks list received! size=" <<m <<" _pos_now = "<< _pos_now <<" _pos_end = "<<_pos_end;
- #undef taskslist
-
-    return 0;
-}
-
-iarc_arena_simulator::IARCTask PlannerPath::get_task_now()
-{
-    uint32_t time_now = arena_time_now();
-       if (_pos_now <=  _pos_end && time_now > _tasks_list[_pos_now % taskslist_capacity].time_end){   //move to next waypoint
-               _pos_now++;
-       }
-       if(_pos_now > _pos_end){ //generate current state as target waypoint.
-           LOG(WARNING) << "tasks list is empty!";
-           // make_task_type_reach(std::string frame_id, ros::Time stamp, double aimx,
-           //double aimy, double aimz, uint32_t start_time_ms, uint32_t aim_time_ms);
-           std::string frame_id = PARAM::str_arena_frame;
-           ros::Time stamp = ros::Time::now();
-           _tasks_list[_pos_now % taskslist_capacity] = make_task_type_reach(frame_id, stamp,
-                   _quad_status.x, _quad_status.y, _quad_status.z, time_now, time_now + task_period_ms);
-           _pos_end = _pos_now;
-           _tasks_list[_pos_now % taskslist_capacity].task_seq = -1;
-       }
-
-       iarc_arena_simulator::IARCTask task_now = _tasks_list[_pos_now % taskslist_capacity];
-
-       LOG(INFO) <<"task accept! pos_now= " <<_pos_now <<" pos_end = "<< _pos_end
-               <<"task seq="<<task_now.task_seq<< "start time="<<task_now.time_start
-               << " end time="<<task_now.time_end
-               <<" task type=" <<::str_task_type[(uint32_t)task_now.task_type]
-               <<" task value="<<task_now.task_value
-               <<"robot id ="<<task_now.robot_id
-               <<"pos =("<<task_now.final_pose.position.x
-               << "," <<task_now.final_pose.position.y
-               <<","  <<task_now.final_pose.position.z<<")";
-       return task_now;
 }
 
 int PlannerPath::smooth_waypoints(std::vector<iarc_arena_simulator::IARCWaypoint> &list)
@@ -549,6 +474,267 @@ int PlannerPath::plan_PureTracking(iarc_arena_simulator::IARCWaypointsList &wpli
     return 0;
 }
 
+bool PlannerPath::generate_path(std::vector<iarc_arena_simulator::IARCWaypoint> &list,  double time_start, double dst_x, double dst_y, double dst_z, double dst_time,  robot_id dst_robotid,  robotcmd_kind dst_turncmd )
+{
+	//no matter what happened , do not return an empty path!
+	//no matter what happeded , do not return an path that starts with an un executable waypoint.
+	bool found = false;
+	//cout<<"start graph planning!"<<endl;
+	std::vector<IARC_POSITION> edgepath;
+	edgepath.clear();
+	uint32_t t1, t2;
+	double total_len = 0.0;
+
+	t1 = arena_time_now();
+	//cout<<"time t1= "<<t1<<endl;
+	found = graph_planing_path(edgepath, dst_x, dst_y, total_len);
+	t2 = arena_time_now();
+	//cout<<"time t2= "<<t2<<" t2-t1= "<< t2 - t1<<endl;
+
+	//cout<<"start smoothing!"<<endl;
+	std::vector<IARC_POSITION> curve;
+	G_Bazier::createCurve3ok(edgepath, 0, edgepath.size() - 1, curve, PARAM::edge_bazier_rate);
+	// the path will be start at path[1], which  is supposed to be the (quad_status.x quad_status.y)
+	// the path will be end at path[size() -1], which is supposed to be the (dst_x, dst_y) or the (closest_x, closest_y) when no solution found.
+	/*
+	printf("curve:\n");
+	for(int k = 0; k< curve.size(); k++){
+		printf("%.2lf %.2lf\n",curve[k].x, curve[k].y);
+	}
+	printf("total_len= %.2lf:\n", total_len);
+	*/
+
+	list.clear();
+	double det = (dst_time - time_start > 1.0 ) ? (dst_time - time_start) : 1.0 ;
+	double vh = PARAM::cruise_velocity;
+	double vz = (dst_z - _quad_status.z) / det;
+	double time_wp = time_start;
+
+	int i;
+	for( i=1; i < curve.size() -1; i++){
+		double dlen = norm(curve[i].x - _quad_status.x, curve[i].y - _quad_status.y);
+		if( dlen > 0.3) break;
+		time_wp = time_start + dlen / vh;
+	}
+
+	for(; i <curve.size(); i++){
+		double dlen = norm(curve[i].x -curve[i - 1].x, curve[i].y - curve[i - 1].y);
+		double dtime = (dlen / vh > 1e-3) ? (dlen / vh) : 1e-3;
+		time_wp = time_wp + dtime;
+		double cz = _quad_status.z + vz * (time_wp - time_start);
+		if( vz > 0.0 && cz > dst_z){//达到目标高度 就不再 变化
+			cz = dst_z;
+		}
+		if(vz < 0.0 && cz < dst_z){
+			cz = dst_z;
+		}
+
+		robot_id rid = robot_arena;
+		robotcmd_kind rcmd= turn_none;
+
+		add_one_waypoint(list,
+									time_wp * 1000.0,
+			                        curve[i].x,
+			                        curve[i].y,
+			                        cz,
+			                        0.0, 0.0, 0.0,
+			                        0.0, 0.0, 0.0,
+									rid, rcmd);
+	}
+
+	return found;
+}
+
+bool PlannerPath::require_generate(double &dst_x, double &dst_y, double &dst_z, double &dst_time, enum robot_id &dst_robotid, enum robotcmd_kind &dst_turncmd)
+{
+	bool should_replan = true;
+	uint32_t time_now =arena_time_now();
+	IARCTask task= get_task_now();
+
+    if(_fp_path_env != NULL){
+    	fprintf(_fp_path_env, "\nPlanPath\n");
+    	fprintf(_fp_path_env, "time= %d taskseq= %d tasktype= %s robotid= %d cmdtype= %s turntime=%d\n",
+    			arena_time_now(), task.task_seq, ::str_task_type[task.task_type], task.robot_id, ::str_kind_turn[task.robot_cmd], get_time_sendcmd(task));
+    	//LOG(INFO)<<"plan path " << arena_time_now() <<" "<<  task.task_seq << " "<< ::str_task_type[task.task_type] <<" "<<  task.robot_id <<" "<< ::str_kind_turn[task.robot_cmd] <<" "<< get_time_sendcmd(task) ;
+    }
+
+	//type_hover, type_reach, type_cruise, type_follow, type_interact,
+	switch( task.task_type)
+	{
+	case type_hover:{
+			dst_x = _quad_status.x;
+			dst_y = _quad_status.y;
+			dst_z = _quad_status.z;
+			dst_robotid = robot_arena;
+			dst_turncmd = turn_none;
+			dst_time =( (double)task.time_end) / 1000.0;
+
+			_task_seq_saved = task.task_seq;
+			should_replan = true;
+	}break;
+	case type_reach: case type_cruise:{
+			dst_x = task.final_pose.position.x;
+			dst_y = task.final_pose.position.y;
+			dst_z = task.final_pose.position.z;
+			dst_robotid = robot_arena;
+			dst_turncmd = turn_none;
+			dst_time =( (double)task.time_end) / 1000.0;
+
+			if(!in_arena_xy(dst_x, dst_y))
+			_task_seq_saved = task.task_seq;
+			should_replan = true;
+	}break;
+	case type_follow:{
+		IARCRobot r = get_robot_by_id(task.robot_id);
+		if ( r.id != robot_none  && r.id != robot_arena && r.belief_rate > 0.1){
+			//believable, should always replan , for the robot is moving
+			dst_x = r.x;
+			dst_y = r.y;
+			dst_z = task.final_pose.position.z;
+			dst_robotid = (robot_id)task.robot_id;
+			dst_turncmd =turn_none;
+			dst_time = ( (double)task.time_end) / 1000.0;
+
+			_task_seq_saved = task.task_seq;
+			should_replan = true;
+		}
+		else{
+				dst_x = _quad_status.x;
+				dst_y = _quad_status.y;
+				dst_z = _quad_status.z;
+				dst_robotid = robot_arena;
+				dst_turncmd = turn_none;
+				dst_time = ( (double)arena_time_now()) /1000.0  + 1.0 / PARAM::ros_rate_path;
+
+				_task_seq_saved = task.task_seq;
+				should_replan = true;
+				//always replan..
+		}
+	}break;
+	case type_interact:{
+    	//IARCRobot r = get_robot_by_id(task.robot_id);
+    	uint32_t time_now_ms = arena_time_now();
+    	double time_now =( (double)(time_now_ms)) / 1000.0;
+    	double time_action =( (double)get_time_sendcmd(task)) / 1000.0;
+/*
+    	if ( r.id != robot_none  && r.id != robot_arena && r.belief_rate > 0.1 && time_action > time_now)
+        {
+    		//make prediction
+    		IARCRobot r2;
+    		static IARCRobot r2_saved;
+    		if(is_turning_now()){
+    			//do not make prediction
+    			if(task.task_seq != _task_seq_saved){
+    				//if we can not predict now, then we fly to target robot.
+    				r2 = make_prediction_robot(r.time_ms - 1, r, 0);
+    			}
+    			else{
+    				r2 = r2_saved;
+    			}
+    		}
+    		else{
+    			//else make prediciton.
+    			r2 = make_prediction_robot(time_action * 1000.0, r, 0);
+    		}
+    		r2_saved = r2;
+
+    		//build  aim position
+    		dst_x = r2.x;
+    		dst_y = r2.y;
+    		dst_z = task.final_pose.position.z; //fly to task final_pose.position ?
+    		dst_robotid = (robot_id)task.robot_id;
+    		dst_turncmd = (robotcmd_kind)task.robot_cmd;
+    		dst_time = time_action;
+
+			_task_seq_saved = task.task_seq;
+			should_replan = true; //require to replan all the time
+        }
+    	else
+    	*/
+    	{
+
+		dst_x = task.final_pose.position.x;
+		dst_y = task.final_pose.position.y;
+		dst_z = task.final_pose.position.z;
+		//dst_robotid =(enum robot_id) task.robot_id;
+		//dst_turncmd =(enum robotcmd_kind) task.robot_cmd;
+
+    	if(time_action > time_now)
+    	{
+			dst_time = time_action; //( (double)arena_time_now()) /1000.0  + 1.0 / PARAM::ros_rate_path;
+			dst_robotid =(enum robot_id) task.robot_id;
+			dst_turncmd =(enum robotcmd_kind) task.robot_cmd;
+    	}
+    	else{
+    		dst_time = time_now  + 1.0 / PARAM::ros_rate_path;
+    		dst_x = _quad_status.x;
+			dst_y = _quad_status.y;
+			dst_z = _quad_status.z;
+    		dst_robotid = robot_arena;
+    		dst_turncmd = turn_none;
+    	}
+		_task_seq_saved = task.task_seq;
+		should_replan = true;
+
+    	}
+	}break;
+	default:{
+		LOG(ERROR) <<" unkown task type !";
+	}
+	}
+	return should_replan;
+}
+
+int PlannerPath::plan_djikstra(iarc_arena_simulator::IARCWaypointsList &wplist)
+{
+	LOG(INFO)<<"plan dijkstra";
+	double dst_x = _quad_status.x;
+	double dst_y = _quad_status.y;
+	double dst_z = _quad_status.z;
+	uint32_t time_now_ms = arena_time_now();
+	double dst_time =( (double)time_now_ms) / 1000.0;
+	enum robot_id dst_robotid = robot_id::robot_none;
+	enum robotcmd_kind dst_turncmd = robotcmd_kind::turn_none;
+
+	if(require_generate(dst_x, dst_y, dst_z, dst_time, dst_robotid, dst_turncmd) == true){
+		double time_start =( (double)(time_now_ms))/ 1000.0;
+		LOG(INFO) <<" timenow= "<<arena_time_now()<<" "<<dst_x<<" "<<dst_y<<" "<<dst_z
+				<<" dst_time= "<<dst_time<<" time_start= "<<time_start;
+		//LOG(INFO) <<"dst tnow, x,y,z,time, id,cmd= "<< arena_time_now()<<" "<<dst_x<<" "<<dst_y<<" "<<dst_z
+		//		<<" "<<dst_time<<" "<<(uint8_t)dst_robotid<<" "<<(uint8_t)dst_turncmd;
+		//dst time is command start time.
+		bool found = generate_path(wplist.list, time_start, dst_x, dst_y, dst_z, dst_time, dst_robotid, dst_turncmd);
+/*
+		if(found && dst_turncmd != robotcmd_kind::turn_none){
+			wplist.list[wplist.list.size() - 1].robot_id = dst_robotid;
+			wplist.list[wplist.list.size() - 1].robot_cmd = dst_turncmd;
+			//just add turn command in the final waypoint.
+		}
+		*/
+
+/*
+		printf("curve:\n");
+		for(int k = 0; k< wplist.list.size(); k++){
+			printf("%d %.2lf %.2lf %.2lf %d\n",k,  wplist.list[k].x, wplist.list[k].y, wplist.list[k].z, wplist.list[k].tms);
+		}
+*/
+		smooth_waypoints(wplist.list);
+
+	    if(_fp_path_env != NULL){
+	    	fprintf(_fp_path_env, "nPaths= %d timenow=%d\n", wplist.list.size(), time_now_ms);
+	    	for(int k = 0; k< wplist.list.size(); k++){
+	    		if( k == 0 || k == wplist.list.size()-1 || wplist.list[k].robot_cmd != turn_none){
+	    			fprintf(_fp_path_env, "k= %d seq= %d time= %d robotid= %d cmd= %s\n",k, wplist.list[k].seq, wplist.list[k].tms,
+	    					wplist.list[k].robot_id, ::str_kind_turn[wplist.list[k].robot_cmd]);
+	    		}
+	    	}
+	    }
+
+	}
+
+    return 0;
+}
+
 int PlannerPath::plan_with_obs(iarc_arena_simulator::IARCWaypointsList &wplist)
 {
     double orgx,orgy,orgt;//起始点
@@ -556,7 +742,7 @@ int PlannerPath::plan_with_obs(iarc_arena_simulator::IARCWaypointsList &wplist)
     double obs[TOTAL_OBS][5];//障碍物的位置，速度，以及该障碍物是否可见。//这是障碍物的数量是有限的。
     double danger_radius;//危险距离
     double step_t,step_x,step_y;//空间的划分
-    double range_xmin,range_ymin,range_xmax,range_ymax;//定义空间的限制大小
+    double range_xmin, range_ymin, range_xmax, range_ymax;//定义空间的限制大小
     int options;//选项
     int total_obs;
 
@@ -676,11 +862,14 @@ int PlannerPath::plan_with_obs(iarc_arena_simulator::IARCWaypointsList &wplist)
     return 0;
 }
 
-int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
-			const std::vector<IARCRobot> &obs, double src_x, double src_y, double dst_x, double dst_y)
+bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double dst_x, double dst_y, double &total_len)
 {
+	bool found = false;
 	int nNodes = _map_size_x * _map_size_y * PARAM::edge_num_direction + 2;
 	struct G_Graph::Graph* graph = G_Graph::createGraph(nNodes);
+	double src_x = _quad_status.x;
+	double src_y = _quad_status.y;
+
 	int src_xi, src_yi, dst_xi, dst_yi, src, dst;
 	arena2map(src_x, src_y, src_xi, src_yi);
 	arena2map(dst_x, dst_y, dst_xi, dst_yi);
@@ -689,7 +878,8 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 
 	path.clear();
 	//build graph
-	FILE * fp_edgemap = fopen(PARAM::file_name_edgemap.c_str(), "w");
+	FILE * fp_edgemap = NULL;
+	//fp_edgemap= fopen(PARAM::file_name_edgemap.c_str(), "w");
 
 	for(int i = 0; i< _map_size_x; i++){
 		for(int j = 0; j< _map_size_y; j++){
@@ -715,19 +905,24 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 						G_Graph::addEdge(graph, get_nodes_edge_id(k2, ni, nj), get_nodes_edge_id(k1, i, j), w2);
 
 						//LOG(INFO) <<"conect: "<<i<<" "<<j<<" "<<ni<<" "<<nj<<" "<<ni2<<" "<<nj2;
-						fprintf(fp_edgemap, "%d %d %d %d %d %d %d %d %.3lf %.3lf\n", i, j, ni, nj, ni2, nj2,
-								get_nodes_edge_id(k1,i,j), get_nodes_edge_id(k2,ni,nj),  w1, w2);
+						if(fp_edgemap!=NULL){
+							fprintf(fp_edgemap, "%d %d %d %d %d %d %d %d %.3lf %.3lf\n", i, j, ni, nj, ni2, nj2,
+									get_nodes_edge_id(k1,i,j), get_nodes_edge_id(k2,ni,nj),  w1, w2);
+						}
 
 					}
 				}
 				G_Graph::addEdge(graph, get_nodes_edge_id(k1,i, j), dst,
-						PARAM::edge_nosolution_jump + (i - dst_xi) * (i - dst_xi) + (j - dst_yi) * (j - dst_yi));
+						PARAM::edge_nosolution_jump + ((i - dst_xi) * (i - dst_xi) + (j - dst_yi) * (j - dst_yi))*10);
+				if( !grid_in_safe_area(src_xi, src_yi) ){
+					G_Graph::addEdge(graph, src, get_nodes_edge_id(k1, i, j), ((i - src_xi) * (i - src_xi) + (j - src_yi) * (j - src_yi))*50);
+				}
 			}
 		}
 	}
 
-	if (sqrt(_quad_status.vx * _quad_status.vx + _quad_status.vy* _quad_status.vz) > PARAM::edge_velocity_static){
-		double theta = atan2(_quad_status.vy, _quad_status.vx);
+	if ( is_quad_still_now() == false){
+		double theta = get_current_moving_direction();
 		if(theta < 0.0 ) theta  = theta + M_PI * 2.0;
 		int ke = theta / (M_PI * 2.0 /(double)(PARAM::edge_num_direction));
 		for(int k2 = 0; k2< PARAM::edge_num_direction; k2++){
@@ -737,7 +932,7 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 			if(fabs(PARAM::edge_angel[ke][k2]) < PARAM::edge_angle_limited){
 						G_Graph::weight_type w1 = PARAM::edge_weight[k2] + fabs(PARAM::edge_angel[ke][k2])/PARAM::edge_angle_de * PARAM::edge_coef_angle;
 						G_Graph::addEdge(graph, src, get_nodes_edge_id(k2, src_xi, src_yi), w1);
-						LOG(INFO)<<"src con:"<<src<<" "<<src_xi<<" "<<src_yi<<" "<<k2;
+						//LOG(INFO)<<"src con:"<<src<<" "<<src_xi<<" "<<src_yi<<" "<<k2;
 					}
 			}
 	}
@@ -749,7 +944,7 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 
 			G_Graph::weight_type w1 = PARAM::edge_weight[k];
 			G_Graph::addEdge(graph, src, get_nodes_edge_id(k, src_xi, src_yi), w1);
-			LOG(INFO)<<"src con:"<<src<<" "<<src_xi<<" "<<src_yi<<" "<<k;
+			//LOG(INFO)<<"src con:"<<src<<" "<<src_xi<<" "<<src_yi<<" "<<k;
 		}
 	}
 
@@ -760,15 +955,35 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 		if(!in_grid_map(from_xi, from_yi) || !edge_in_safe_area(from_xi, from_yi, dst_xi, dst_yi)) continue;
 		G_Graph::weight_type w1 = G_Graph::weight_zero + 0.001;
 		G_Graph::addEdge(graph, get_nodes_edge_id(k, from_xi, from_yi), dst, w1);
-		LOG(INFO)<<"dst con:"<<dst<<" "<<from_xi<<" "<<from_yi<<" "<<k;
+		//LOG(INFO)<<"dst con:"<<dst<<" "<<from_xi<<" "<<from_yi<<" ["<<k<<"] "<<dst_xi<<" "<<dst_yi;
 	}
 
-	fclose(fp_edgemap);
+	if( norm(src_x - dst_x, src_y - dst_y) < 2.0){
+		if(segment_in_safe_area(src_x, src_y, dst_x, dst_y)){
+			G_Graph::addEdge(graph, src, dst, G_Graph::weight_zero);
+		}
+	}
+/*
+	if( src_xi == dst_xi && src_yi == dst_yi){
+		if(grid_in_safe_area(src_xi, src_yi)){
+			G_Graph::addEdge(graph, src, dst, G_Graph::weight_zero);
+		}
+	}
+*/
+
+	if(fp_edgemap!=NULL){
+		fclose(fp_edgemap);
+	}
+
 	//planning
 	std::vector<int> nodes_path;
-	bool found = false;
-	found = G_Graph::dijkstra(graph, src, dst, PARAM::edge_nosolution_jump,nodes_path);
+	found = G_Graph::dijkstra(graph, src, dst, PARAM::edge_nosolution_jump,nodes_path, total_len);
 
+	if(nodes_path.size() <= 0){
+		nodes_path.push_back(src);
+		nodes_path.push_back(dst);
+		LOG(ERROR) <<"no path found!";
+	}
 	//create path
 	if(nodes_path.size() <= 0 ){
 		LOG(ERROR) <<"no path found!";
@@ -777,32 +992,50 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 		IARC_POSITION pt;
 		path.clear();
 
-		pt.x = src_x;//lastx;
-		pt.y = src_y;//lasty;
+		double last_x = src_x;
+		double last_y = src_y;
+
+		make_history_point(last_x, last_y);
+
+		pt.x = last_x;//lastx;
+		pt.y = last_y;//lasty;
 
 		path.push_back(pt);
 
-		cout<<"path list"<<endl;
+	//	cout<<"path list"<<endl;
 		int xi, yi;
+		pt.x = src_x; pt.y = src_y;
+		path.push_back(pt); // as the beging point..
 
-		for(int k = nodes_path.size() -2; k >= 1; k--){
+		for(int k = nodes_path.size() -3; k >= 1; k--){
 			xi = 0; yi = 0;
 			pt.x = 0.0; pt.y = 0.0;
 			get_edge_first_grid_by_id(nodes_path[k], xi, yi);
 			map2arena(xi, yi, pt.x, pt.y);
 			path.push_back(pt);
-			cout<<nodes_path[k]<<" "<<pt.x<<" "<<pt.y<<" "<<get_k_of_edge_id(nodes_path[k])<<endl;
+			//cout<<nodes_path[k]<<" "<<pt.x<<" "<<pt.y<<" "<<get_k_of_edge_id(nodes_path[k])<<endl;
 		}
-		cout<<endl;
+		//cout<<endl;
+		if(nodes_path.size() == 2){
+			//to avoid an empty curve is generate.
+			pt.x = dst_x; pt.y = dst_y;
+			path.push_back(pt);
+		}
 
-		get_edge_first_grid_by_id(nodes_path[0], xi, yi);
 
+		//LOG(ERROR) <<"found = "<<found;
 		if(found){
 			pt.x = dst_x;
 			pt.y = dst_y;
 		}
 		else{
-			map2arena(xi, yi, pt.x, pt.y);
+			if(nodes_path.size() > 2){
+				get_edge_second_grid_by_id(nodes_path[1], xi, yi);
+				map2arena(xi, yi, pt.x, pt.y);
+			}
+			else{
+				pt.x = dst_x; pt.y = dst_y;
+			}
 		}
 		path.push_back(pt);
 		path.push_back(pt);
@@ -810,7 +1043,7 @@ int PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,
 
 	freeGraph(graph);
 
-	return 0;
+	return found;
 }
 int PlannerPath::planner_test_auto_task()
 {
@@ -842,8 +1075,12 @@ int PlannerPath::test_main()
 	obstacle.y = 2.0;
 	_obs_status.push_back(obstacle);
 */
-	_quad_status.x = -6.0;
-	_quad_status.y = -6.0;
+	double dst_x, dst_y;
+
+	dst_x = 6; //6.8;
+	dst_y = 6;//6.2;
+	_quad_status.x = -5;//0.1;
+	_quad_status.y = -5;//0.6;
 	_quad_status.z = 2.0;
 	_quad_status.vx = 0.0;
 	_quad_status.vy = 0.0;
@@ -852,20 +1089,13 @@ int PlannerPath::test_main()
 	std::vector<IARC_POSITION> path;
 	path.clear();
 
-	double src_x, src_y;
-	double dst_x, dst_y;
-
-	src_x = _quad_status.x;
-	src_y = _quad_status.y;
-	dst_x = 6.0;
-	dst_y = 6.0;
-
 	cout<<"start graph planning!"<<endl;
 
 	uint32_t t1, t2;
+	double total_len = 0.0;
 	t1 = arena_time_now();
 	cout<<"time t1= "<<t1<<endl;
-	graph_planing_path(path, _obs_status, src_x, src_y, dst_x, dst_y);
+	graph_planing_path(path, dst_x, dst_y, total_len);
 	t2 = arena_time_now();
 	cout<<"time t2= "<<t2<<" t2-t1= "<< t2 - t1<<endl;
 
@@ -890,6 +1120,90 @@ int PlannerPath::test_main()
 		fprintf(fp_path, "%.2lf %.2lf\n", curve[i].x, curve[i].y);
 	}
 	fclose(fp_path);
+
+	return 0;
+}
+
+int PlannerPath::test_main_plan_dijkstra(iarc_arena_simulator::IARCWaypointsList &wplist)
+{
+	static bool bfirst = true;
+	if (bfirst){
+		bfirst = false;
+	 //boost::shared_ptr
+	boost::shared_ptr<iarc_arena_simulator::IARCCommand> cmd(new iarc_arena_simulator::IARCCommand);
+	cmd->header.frame_id = PARAM::str_arena_frame;
+	cmd->header.stamp = ros::Time::now();
+	cmd->command_kind = (uint8_t) turn_none;
+	cmd->robot_id = (uint8_t) robot_none;
+	this->update_latest_cmdtime(cmd);
+
+	boost::shared_ptr<iarc_arena_simulator::IARCQuadStatus> quad(new iarc_arena_simulator::IARCQuadStatus);
+	quad->header.frame_id  = PARAM::str_arena_frame;
+	quad->header.stamp = ros::Time::now();
+	quad->x = 0.0;
+	quad->y = 0.0;
+	quad->z = 2.0;
+	quad->vx = 0.0;
+	quad->vy = 0.0;
+	quad->vz = 0.0;
+	quad->ax = 0.0;
+	quad->ay = 0.0;
+	quad->az = 0.0;
+	quad->tms = arena_time_now();
+	quad->seq = 0;
+	quad->q0 = 1.0;
+	quad->q1 = 0.0;
+	quad->q2 = 0.0;
+	quad->q3 = 0.0;
+	this->update_quad(quad);
+
+	boost::shared_ptr<geometry_msgs::PoseArray> tgt(new geometry_msgs::PoseArray);
+	tgt->header.frame_id = PARAM::str_arena_frame;
+	tgt->header.stamp = ros::Time::now();
+	geometry_msgs::Pose pos;
+	double theta = 0.0;
+	pos.position.x = 2.0;
+	pos.position.y = 2.0;
+	pos.position.z = 0.0;
+	pos.orientation.w = sin((-theta + M_PI) / 2.0);
+	pos.orientation.x = 0.0;
+	pos.orientation.y = 0.0;
+	pos.orientation.z = cos((-theta + M_PI) / 2.0);
+	tgt->poses.push_back(pos);
+	this->update_tgt(tgt);
+
+	boost::shared_ptr<geometry_msgs::PoseArray> obs(new geometry_msgs::PoseArray);
+	obs->header.frame_id = PARAM::str_arena_frame;
+	obs->header.stamp = ros::Time::now();
+	theta = 0.0;
+	pos.position.x = 2.0;
+	pos.position.y = 2.0;
+	pos.position.z = 0.0;
+	pos.orientation.w = sin((-theta + M_PI) / 2.0);
+	pos.orientation.x = 0.0;
+	pos.orientation.y = 0.0;
+	pos.orientation.z = cos((-theta + M_PI) / 2.0);
+	obs->poses.push_back(pos);
+	this->update_obs(obs);
+
+
+	boost::shared_ptr<iarc_arena_simulator::IARCTasksList> tasklist(new iarc_arena_simulator::IARCTasksList);
+	uint32_t time_beg = arena_time_now();
+	tasklist->header.frame_id = PARAM::str_arena_frame;
+	tasklist->header.stamp = ros::Time::now();
+	iarc_arena_simulator::IARCTask task;
+	task = ::make_task_type_hover(PARAM::str_arena_frame, ros::Time::now(), time_beg, time_beg + 1000);
+	task.task_seq = 1;
+	//tasklist->list.push_back(task);
+	task = ::make_task_type_reach(PARAM::str_arena_frame,  ros::Time::now(),
+			4.0, 4.0, 2.0, time_beg + 1000, time_beg +1000 + 5000);
+	task.task_type = type_cruise;
+	task.task_seq = 2;
+	tasklist->list.push_back(task);
+	this->update_taskslist(tasklist);
+	}
+
+	this->plan(wplist);
 
 	return 0;
 }

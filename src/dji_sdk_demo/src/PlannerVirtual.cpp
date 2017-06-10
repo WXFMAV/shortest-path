@@ -7,11 +7,14 @@
 
 #include "PlannerVirtual.h"
 #include <glog/logging.h>
+#include<math.h>
 
 using namespace std;
 using namespace Eigen;
 using namespace iarc_arena_simulator;
 
+#define taskslist_capacity PARAM::taskslist_capacity
+#define task_period_ms  PARAM::task_period_ms
 
 PlannerVirtual::PlannerVirtual() {
 	// TODO Auto-generated constructor stub
@@ -20,9 +23,10 @@ PlannerVirtual::PlannerVirtual() {
 	memset(&_quad_status, 0 ,sizeof(_quad_status));
     _tgts_saved.clear();
 
-    _fp_map = fopen(PARAM::file_name_map.c_str(), "w");
+    _fp_map = NULL;
+    //_fp_map = fopen(PARAM::file_name_map.c_str(), "w");
      if ( _fp_map == NULL){
-     	LOG(ERROR) << "file open error!" << PARAM::file_name_map.c_str();
+     	//LOG(ERROR) << "file open error!" << PARAM::file_name_map.c_str();
      }
      _map_memory.clear();
      _map_size_x = (int)(PARAM::arena_size / PARAM::map_memory_step_x)+1;
@@ -40,6 +44,10 @@ PlannerVirtual::PlannerVirtual() {
      _latest_cmd.command_kind = robotcmd_kind::turn_none;
      _latest_cmd.robot_id = robot_id::robot_arena;
      _latest_cmd_continue_time = 0;
+
+     _tasks_pos_now = 1;
+     _tasks_pos_end = 0;
+     _tasks_list.resize(taskslist_capacity);
 
 }
 
@@ -77,7 +85,7 @@ int PlannerVirtual::update_tgt(const geometry_msgs::PoseArray::ConstPtr& targets
         	//不在视野内的目标依靠预测，进行飞行，如果在视野内，则直接更新。
         	//target not in sight, then estimate the position.
         	IARCRobot r_last = get_saved_robot_by_id(k);
-        	if (r_last.id == k && r_last.belief_rate >0.0){
+        	if (r_last.id == k && r_last.belief_rate >0.1){
 
         		if ( r_last.visible){
         			r_last.visible = false;
@@ -92,6 +100,8 @@ int PlannerVirtual::update_tgt(const geometry_msgs::PoseArray::ConstPtr& targets
         		originr.y = r_last.lost_y;
         		originr.theta = r_last.lost_theta;
         		originr.time_ms = r_last.lost_time_ms;
+        		originr.velocity = r_last.velocity;
+        		originr.visible = false;
         		originr.id = r_last.id;
 
         		IARCRobot tmpr = make_prediction_robot(time_now, originr, 0.0);
@@ -101,8 +111,8 @@ int PlannerVirtual::update_tgt(const geometry_msgs::PoseArray::ConstPtr& targets
         		r_last.theta = tmpr.theta;
         		r_last.time_ms = time_now;
         		r_last.belief_rate =   forget_function(r_last.time_ms - r_last.lost_time_ms);
-
-        		if(r_last.belief_rate > 0.0 && in_arena(r_last)){
+        		r_last.visible = false;
+        		if(r_last.belief_rate > 0.0 && in_arena(r_last) && !in_sight(r_last)){
         			_tgt_status.push_back(r_last);
         		}
         	}
@@ -122,7 +132,10 @@ int PlannerVirtual::update_obs(const geometry_msgs::PoseArray::ConstPtr& obstacl
 	        r.y = obstacles->poses[k].position.y;
 	        r.theta = quaternion_to_theta_z(obstacles->poses[k].orientation.w,obstacles->poses[k].orientation.z);
 	        r.velocity = PARAM::velocity_obs;
-	        if(PARAM::obstacle_mask[k] && in_sight(r)){
+	        //if(PARAM::obstacle_mask[k] && in_sight(r)){
+	        if(PARAM::obstacle_mask[k]){
+	        	r.visible = true;
+	        	r.belief_rate = 1.0;
 	        	_obs_status.push_back(r);
 	        }
 	    }
@@ -156,6 +169,9 @@ int PlannerVirtual::update_map_memory()
 	x0 = (double) _quad_status.x;
 	y0 = (double) _quad_status.y;
 	z0 = (double) _quad_status.z;
+
+	if(!in_arena_xy(x0, y0)) return 0;
+
 	double view_radius;
 	int view_radius_x_i;
 	int view_radius_y_i;
@@ -170,7 +186,7 @@ int PlannerVirtual::update_map_memory()
 	double tn = ((double)( arena_time_now()))/1000.0;
 	for( x_i = x0_i - view_radius_x_i; x_i < x0_i + view_radius_x_i ; x_i++){
 		for(y_i = y0_i - view_radius_y_i; y_i < y0_i + view_radius_y_i; y_i++){
-			if ( x_i >= 0 && x_i <= _map_size_x  && y_i >= 0 && y_i <= _map_size_y){
+			if ( x_i >= 0 && x_i < _map_size_x  && y_i >= 0 && y_i < _map_size_y){
 				_map_memory[x_i][y_i] = tn;
 			}
 		}
@@ -190,6 +206,87 @@ int PlannerVirtual::update_latest_cmdtime(const iarc_arena_simulator::IARCComman
     }
     return 0;
 }
+
+int PlannerVirtual::update_taskslist(const iarc_arena_simulator::IARCTasksList::ConstPtr &taskslist)
+{
+
+    int m = ((iarc_arena_simulator::IARCTasksList)(*taskslist)).list.size();
+ #define taskslist ((iarc_arena_simulator::IARCTasksList)(*taskslist)).list
+
+     uint32_t time_now = arena_time_now();
+     uint32_t add_k = 0;
+
+     for (int k = 0; k<m; k++){
+         if (taskslist[k].time_end > time_now){
+             _tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity] = taskslist[k];
+
+             if ( _tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start < time_now){
+            	 _tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start = time_now;
+             }
+
+             _tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start =
+                     (_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start >time_now?
+                             _tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start :time_now);
+             LOG (INFO) <<"pos = "<<_tasks_pos_now + add_k<< " task seq=" <<taskslist[k].task_seq<< "start time="
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_start  << " end time="
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].time_end <<" task type="
+                     <<(uint32_t)_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].task_type <<" task value="
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].task_value<<"robot id ="
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].robot_id<< "robot cmd="
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].robot_cmd<<"pos =("
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].final_pose.position.x<< ","
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].final_pose.position.y<<","
+                     <<_tasks_list[(_tasks_pos_now+add_k)% taskslist_capacity].final_pose.position.z<<")";
+             add_k++;
+         }
+     }
+     if (add_k != 0)
+     {
+         //a new path list is generated.
+         _tasks_pos_end = _tasks_pos_now + add_k-1;
+     }
+     if ( _tasks_pos_end - _tasks_pos_now > taskslist_capacity){
+         LOG(ERROR) << "list capacity too small , or tasks list too large to be stored!";
+         _tasks_pos_now = _tasks_pos_end - taskslist_capacity;
+     }
+     LOG(INFO) << "tasks list received! size=" <<m <<" _pos_now = "<< _tasks_pos_now <<" _pos_end = "<<_tasks_pos_end;
+ #undef taskslist
+
+    return 0;
+}
+iarc_arena_simulator::IARCTask PlannerVirtual::get_task_now()
+{
+
+    uint32_t time_now = arena_time_now();
+    if (_tasks_pos_now <=  _tasks_pos_end && time_now > _tasks_list[_tasks_pos_now % taskslist_capacity].time_end){   //move to next waypoint
+               _tasks_pos_now++;
+       }
+       if(_tasks_pos_now > _tasks_pos_end){ //generate current state as target waypoint.
+           LOG(WARNING) << "tasks list is empty!";
+           // make_task_type_reach(std::string frame_id, ros::Time stamp, double aimx,
+           //double aimy, double aimz, uint32_t start_time_ms, uint32_t aim_time_ms);
+           std::string frame_id = PARAM::str_arena_frame;
+           ros::Time stamp = ros::Time::now();
+           _tasks_list[_tasks_pos_now % taskslist_capacity] = make_task_type_reach(frame_id, stamp,
+                   _quad_status.x, _quad_status.y, _quad_status.z, time_now, time_now + task_period_ms);
+           _tasks_pos_end = _tasks_pos_now;
+           _tasks_list[_tasks_pos_now % taskslist_capacity].task_seq = -1;
+       }
+
+       iarc_arena_simulator::IARCTask task_now = _tasks_list[_tasks_pos_now % taskslist_capacity];
+
+       LOG(INFO) <<"task accept! pos_now= " <<_tasks_pos_now <<" pos_end = "<< _tasks_pos_end
+               <<"task seq="<<task_now.task_seq<< "start time="<<task_now.time_start
+               << " end time="<<task_now.time_end
+               <<" task type=" <<::str_task_type[(uint32_t)task_now.task_type]
+               <<" task value="<<task_now.task_value
+               <<"robot id ="<<task_now.robot_id
+               <<"pos =("<<task_now.final_pose.position.x
+               << "," <<task_now.final_pose.position.y
+               <<","  <<task_now.final_pose.position.z<<")";
+       return task_now;
+}
+
 bool PlannerVirtual::in_sight_xy(double x, double y, double x0, double y0, double h0, double angle_rad)
 {
 	double radius = sqrt((x - x0)*(x - x0)+(y - y0)*(y - y0));
@@ -248,8 +345,45 @@ bool PlannerVirtual::will_in_sheephold(const IARCRobot & robot)
     return false;
 }
 
+int PlannerVirtual::get_array_obstacles(geometry_msgs::PoseArray &obstacles)
+{
+	obstacles.poses.clear();
+	obstacles.header.frame_id = PARAM::str_arena_frame;
+	obstacles.header.stamp = ros::Time::now();
+
+	geometry_msgs::Pose ps;
+	for(int k = _obs_status.size() -1; k >= 0; k--){
+		ps.position.x = _obs_status[k].x;
+		ps.position.y = _obs_status[k].y;
+		ps.position.z = 0.0;
+		theta2quaternion(_obs_status[k].theta, ps.orientation.w, ps.orientation.x, ps.orientation.y, ps.orientation.z);
+		obstacles.poses.push_back(ps);
+	}
+
+	return 0;
+}
+int PlannerVirtual::get_array_targets(geometry_msgs::PoseArray &targets)
+{
+	targets.poses.clear();
+	targets.header.frame_id = PARAM::str_arena_frame;
+	targets.header.stamp = ros::Time::now();
+
+	geometry_msgs::Pose ps;
+	for(int k = _tgt_status.size() -1; k >= 0; k--){
+		ps.position.x = _tgt_status[k].x;
+		ps.position.y = _tgt_status[k].y;
+		ps.position.z = 0.0;
+		theta2quaternion(_tgt_status[k].theta, ps.orientation.w, ps.orientation.x, ps.orientation.y, ps.orientation.z);
+		targets.poses.push_back(ps);
+	}
+
+	return 0;
+}
+
+
 int PlannerVirtual::set_saved_robot(const std::vector<IARCRobot> &tgt)
 {
+	_tgts_saved.clear();
 	for(int k = 0; k< tgt.size(); k++){
 		_tgts_saved[tgt[k].id] = tgt[k];
 	}
@@ -286,7 +420,7 @@ int PlannerVirtual::arena2map(double x, double y, int &x_i, int &y_i)
 	if(!in_arena_xy(x, y)){
 		x_i = -1;
 		y_i = -1;
-		LOG(ERROR) << " visit points out of arena!";
+		LOG(ERROR) << " visit points out of arena! x, y = " <<x<<" "<<y ;
 		return 0;
 	}
 	x_i =(int)((x - PARAM::map_memory_org_x )/ PARAM::map_memory_step_x);
@@ -312,8 +446,28 @@ int PlannerVirtual::get_nodes_edge_id(int ki, int xi, int yi)
 {
 	return ki * (_map_size_x * _map_size_y) + xi * (_map_size_y) + yi;
 }
+
+int PlannerVirtual::get_edge_second_grid_by_id(int id, int &xi, int &yi)
+{
+	if( id < 0 || id> _map_size_x * _map_size_y * PARAM::edge_num_direction){
+			LOG(ERROR)<<" edge id illegal!";
+	}
+	int ki = 0;
+	yi = id % _map_size_y;
+	id = id / _map_size_y;
+	xi = id % _map_size_x;
+	id = id / _map_size_x;
+	ki = id;
+	xi = xi + PARAM::edge_offx[ki];
+	yi = yi + PARAM::edge_offy[ki];
+	return 0;
+}
+
 int PlannerVirtual::get_edge_first_grid_by_id(int id, int &xi, int &yi)
 {
+	if( id < 0 || id>= _map_size_x * _map_size_y * PARAM::edge_num_direction){
+		LOG(ERROR)<<" edge id illegal!";
+	}
 	int ki = 0;
 	yi = id % _map_size_y;
 	id = id / _map_size_y;
@@ -349,6 +503,39 @@ int PlannerVirtual::segment_in_circle(IARC_POSITION *p1, IARC_POSITION *p2, IARC
     angle2 = (O.x - p2->x) * (p1->x - p2->x) + (O.y - p2->y) * (p1->y - p2->y);
     if (angle1 > 0 && angle2 > 0) return 1;//余弦都为正，则是锐角
     return 0;
+}
+
+bool PlannerVirtual::grid_in_safe_area(int xi, int yi)
+{
+	if(!in_grid_map(xi, yi)) return false;
+	double x, y;
+	map2arena(xi, yi, x, y);
+
+	for(int k = _obs_status.size() -1; k >= 0; k--){
+		if ( _obs_status[k].belief_rate > 0.1){
+			if(norm( x - _obs_status[k].x, y - _obs_status[k].y) < PARAM::radius_safe) return false;
+		}
+	}
+	return true;
+}
+
+bool PlannerVirtual::segment_in_safe_area(double x1, double y1, double x2, double y2)
+{
+	for(int k = _obs_status.size() - 1; k >= 0; k--){
+		if( _obs_status[k].belief_rate > 0.1){
+			IARC_POSITION O, P1, P2;
+			O.x = _obs_status[k].x;
+			O.y = _obs_status[k].y;
+			P1.x = x1;
+			P1.y = y1;
+			P2.x = x2;
+			P2.y = y2;
+			if(segment_in_circle(&P1, &P2, O, PARAM::radius_safe)){
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 bool PlannerVirtual::edge_in_safe_area(int xi1, int yi1, int xi2, int yi2)
@@ -433,5 +620,44 @@ bool PlannerVirtual::found_tgt()
 			return true;
 		}
 	}
+	return false;
+}
+double PlannerVirtual::norm(double x, double y)
+{
+	return sqrt(x * x + y * y);
+}
+
+bool PlannerVirtual::is_quad_still_now()
+{
+	if(sqrt(_quad_status.vx * _quad_status.vx + _quad_status.vy* _quad_status.vz) > PARAM::edge_velocity_static){
+		return false;
+	}
+	return true;
+}
+int PlannerVirtual::make_history_point(double &lx, double &ly)
+{
+	if( is_quad_still_now()){
+		lx = _quad_status.x;
+		ly = _quad_status.y;
+	}
+	else{
+		double theta = get_current_moving_direction();
+		//make for one meter..
+		lx = _quad_status.x - PARAM::cruise_velocity * cos(theta) * PARAM::edge_time_one_edge;
+		ly = _quad_status.y - PARAM::cruise_velocity * sin(theta) * PARAM::edge_time_one_edge;
+	}
+	return 0;
+}
+
+double PlannerVirtual::get_current_moving_direction()
+{
+	return atan2(_quad_status.vy, _quad_status.vx);
+}
+bool PlannerVirtual::is_turning_now()
+{
+	uint32_t timenow = arena_time_now();
+	if ( timenow > _latest_cmdtime - PARAM::time_turn_distinguish_ms  &&  timenow< _latest_cmdtime +_latest_cmd_continue_time + PARAM::time_turn_distinguish_ms) return true;
+	if( (timenow) % PARAM::period_turn_ms > PARAM::period_turn_ms - PARAM::time_turn_180_ms - PARAM::time_turn_distinguish_ms
+			|| (timenow ) % PARAM::period_turn_ms < PARAM::time_turn_distinguish_ms) return true;
 	return false;
 }

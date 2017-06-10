@@ -46,6 +46,7 @@ int PlannerCruise::init(){
     _tasks_seq = 0;
     _plan_seq = 0;
     _planner = MAXQ_OP;
+    //_planner = AUTO_CRUISE;
     memset(&_quad_status, 0, sizeof(_quad_status));
     _tgt_status.clear();
     _obs_status.clear();
@@ -77,16 +78,51 @@ int PlannerCruise::plan(iarc_arena_simulator::IARCTasksList &taskslist)
         LOG(ERROR) << "code can not be found!";
     }break;
     case MAXQ_OP:{
-        return maxq_op(taskslist);
+        return plan_maxq_op(taskslist);
     }break;
     case REACTIVE:{
         LOG(ERROR) << "code can not be found!";
     }break;
+    case AUTO_CRUISE:{
+    	plan_auto_cruise(taskslist);
+    }
     }
     return 0;
 }
 
-int PlannerCruise::maxq_op(iarc_arena_simulator::IARCTasksList &taskslist)
+int PlannerCruise::plan_auto_cruise(iarc_arena_simulator::IARCTasksList &taskslist)
+{
+	double aimx, aimy, aimz;
+	std::string frame_id = PARAM::str_arena_frame;
+	ros::Time rostime = ros::Time::now();
+	IARCTask task;
+	uint32_t time_now = arena_time_now();
+	static uint32_t time_aim = 0;
+
+	taskslist.header.frame_id = PARAM::str_arena_frame;
+	taskslist.header.stamp = rostime;
+	taskslist.list.clear();
+
+	if(time_now < time_aim) return 0;
+	time_aim = time_now + 10000;
+	aimx = (((double)(random() %1000))/1000.0 - 0.5) * 20.0;
+	aimy = (((double)(random() %1000))/1000.0 - 0.5) * 20.0;
+	aimz = 3.0;
+
+	double dtime = norm(aimx - _quad_status.x, aimy - _quad_status.y) / PARAM::cruise_velocity * 1.5;
+	time_aim = time_now + (int)(dtime * 1000.0);
+
+	task = ::make_task_type_reach(frame_id, rostime,
+			aimx, aimy, aimz,
+			time_now, time_aim);
+
+    add_one_task(task, taskslist.list);
+
+	_list_saved = taskslist.list;
+	return 0;
+}
+
+int PlannerCruise::plan_maxq_op(iarc_arena_simulator::IARCTasksList &taskslist)
 {
     uint32_t t1 = arena_time_now();
     _loop_start_time = t1;
@@ -157,8 +193,8 @@ bool PlannerCruise::require_generate_list()
 		IARCRobot robot = get_robot_by_id(task.robot_id);
 		uint32_t time_action = get_time_sendcmd(task);
 
-		if(robot.id == robot_arena || task.robot_cmd == turn_none){
-			LOG(INFO) <<"timenow= "<<timenow<< "require generate, because of :"<< "robot_id = robot_arena || robot_cmd = turn_none";
+		if(robot.id == robot_arena  || robot.id == robot_none|| task.robot_cmd == turn_none){
+			LOG(INFO) <<"timenow= "<<timenow<< "require generate, because of :"<< "robot_id = robot_arena || robot_id = robot_none|| robot_cmd = turn_none";
 			return true;
 		}
 
@@ -238,7 +274,8 @@ int PlannerCruise::generate_list(std::vector<iarc_arena_simulator::IARCTask> &ta
     //tree_search(0, 1.0);
    // LOG(ERROR)<<"Planning by simple";
 //    tree_search_simple(0, 1.0);
-    LOG(ERROR) << "Planning by map";
+    //LOG(ERROR) << "Planning by map";
+
     tree_search_map(0, 1.0);
 
     taskslist.clear();
@@ -284,7 +321,6 @@ int PlannerCruise::generate_list(std::vector<iarc_arena_simulator::IARCTask> &ta
     		}
     	}
         LOG(INFO) << "task list generated. ok";
-
 
     }
     else
@@ -906,7 +942,7 @@ double PlannerCruise::reward_map(const std::vector<iarc_arena_simulator::IARCTas
 	for ( theta = 0.0; theta < 2.0 * M_PI;  theta += 2.0*M_PI / (double) PARAM::cruise_circular_sample_count){
 		double x = x0 + radius * cos(theta);
 		double y = y0 + radius * sin(theta);
-		if ( !in_arena_xy(x, y)) continue;
+		if ( !in_arena_xy(fabs(x) + 2.0, fabs(y) + 2.0)) continue;
 
 		int x_i, y_i;
 		arena2map(x, y , x_i, y_i);
