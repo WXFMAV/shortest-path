@@ -1,8 +1,8 @@
 <launch>
-	<node pkg="iarc_arena_simulator" type="iarc_arena_simulator_node" name="iarc_arena_simulator_node" required="true">
-	</node>
-	<node pkg="dji_sdk_demo" type="dji_sdk_client_planner_tracking" name="dji_sdk_client_planner_tracking" output="screen" required="false">
-	</node>
+    <node pkg="iarc_arena_simulator" type="iarc_arena_simulator_node" name="iarc_arena_simulator_node" required="true">
+    </node>
+    <node pkg="dji_sdk_demo" type="dji_sdk_client_planner_tracking" name="dji_sdk_client_planner_tracking" output="screen" required="false">
+    </node>
     <node pkg="dji_sdk_demo" type="dji_sdk_client_planner_path" name="dji_sdk_client_planner_path" output="screen" required="false">
     </node>
     <node pkg="dji_sdk_demo" type="dji_sdk_client_planner_cruise" name="dji_sdk_client_planner_cruise" output="screen" required="false">

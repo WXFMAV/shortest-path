@@ -48,6 +48,7 @@ public:
     uint32_t _saved_sent_cmd_task_seq;
 private:
     FILE *_fp_tracking;
+    FILE *_fp_controller;
 };
 
 #endif /* DJI_SDK_DEMO_SRC_PLANNERTRACKING_H_ */

@@ -40,12 +40,12 @@ int main(int argc, char **argv)
     std::cout<<FLAGS_log_dir<<std::endl;
     LOG(INFO) << "record info to this file";
 
-    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand", 10, IARCCommand_callback);
-    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
-    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles",10,IARCObstacles_callback);
-    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets",10,IARCTargets_callback);
-    tasks_list_pub = nh.advertise<iarc_arena_simulator::IARCTasksList>("/iarc_arena/IARCTasksList",10);
-    tasks_pub = nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCTask",10);
+    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand", 10, IARCCommand_callback);
+    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
+    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles",10,IARCObstacles_callback);
+    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCTargets",10,IARCTargets_callback);
+    tasks_list_pub = nh.advertise<iarc_arena_simulator::IARCTasksList>("iarc_arena/IARCTasksList",10);
+    tasks_pub = nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCTask",10);
     theDecision.init();
 
     ros::Rate r0(PARAM::ros_rate_decision);

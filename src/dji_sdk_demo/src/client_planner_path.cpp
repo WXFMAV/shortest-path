@@ -46,14 +46,14 @@ int main(int argc, char **argv)
     arena_set_startnow2(filename);
     LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
-    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand", 10, IARCCommand_callback);
-    tasks_list_sub = nh.subscribe<iarc_arena_simulator::IARCTasksList>("/iarc_arena/IARCTasksList",10,IARCTasksList_callback);
-    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
-    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles",10,IARCObstacles_callback);
-    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets",10,IARCTargets_callback);
-    waypoints_list_pub = nh.advertise<iarc_arena_simulator::IARCWaypointsList>("/iarc_arena/IARCWaypointsList",10);
-    virtual_targets_pub = nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets_virtual",10);
-    virtual_obstacles_pub = nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles_virtual",10);
+    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand", 10, IARCCommand_callback);
+    tasks_list_sub = nh.subscribe<iarc_arena_simulator::IARCTasksList>("iarc_arena/IARCTasksList",10,IARCTasksList_callback);
+    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
+    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles",10,IARCObstacles_callback);
+    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCTargets",10,IARCTargets_callback);
+    waypoints_list_pub = nh.advertise<iarc_arena_simulator::IARCWaypointsList>("iarc_arena/IARCWaypointsList",10);
+    virtual_targets_pub = nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCTargets_virtual",10);
+    virtual_obstacles_pub = nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles_virtual",10);
 
     thePath.init();
 

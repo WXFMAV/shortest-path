@@ -251,7 +251,7 @@ int Quadrotor::DroneSendCmd(DJIDrone* drone)
 }
 int Quadrotor::SimulatorInit()
 {
-    _state_x_sim[0] = 0.0; _state_x_sim[1] = 0.0; _state_x_sim[2] = 2.0;
+    _state_x_sim[0] = 10.0; _state_x_sim[1] = 0.0; _state_x_sim[2] = 2.0;
     _state_x_sim[3] = 0.0; _state_x_sim[4] = 0.0; _state_x_sim[5] = 0.0;
     _state_x_sim[6] = 0.0; _state_x_sim[7] = 0.0; _state_x_sim[8] = 0.0;
     _state_x_sim[9] = 1.0; _state_x_sim[10] = 0.0; _state_x_sim[11] = 0.0;

@@ -23,11 +23,6 @@ PlannerVirtual::PlannerVirtual() {
 	memset(&_quad_status, 0 ,sizeof(_quad_status));
     _tgts_saved.clear();
 
-    _fp_map = NULL;
-    //_fp_map = fopen(PARAM::file_name_map.c_str(), "w");
-     if ( _fp_map == NULL){
-     	//LOG(ERROR) << "file open error!" << PARAM::file_name_map.c_str();
-     }
      _map_memory.clear();
      _map_size_x = (int)(PARAM::arena_size / PARAM::map_memory_step_x)+1;
      _map_size_y = (int)(PARAM::arena_size / PARAM::map_memory_step_y)+1;
@@ -53,10 +48,6 @@ PlannerVirtual::PlannerVirtual() {
 
 PlannerVirtual::~PlannerVirtual() {
 	// TODO Auto-generated destructor stub
-	if ( _fp_map != NULL){
-		fclose(_fp_map);
-		_fp_map = NULL;
-	}
 }
 
 int PlannerVirtual::update_tgt(const geometry_msgs::PoseArray::ConstPtr& targets)
@@ -133,7 +124,7 @@ int PlannerVirtual::update_obs(const geometry_msgs::PoseArray::ConstPtr& obstacl
 	        r.theta = quaternion_to_theta_z(obstacles->poses[k].orientation.w,obstacles->poses[k].orientation.z);
 	        r.velocity = PARAM::velocity_obs;
 	        //if(PARAM::obstacle_mask[k] && in_sight(r)){
-	        if(PARAM::obstacle_mask[k]){
+	        if(PARAM::obstacle_mask[k] && in_arena(r) &&  in_sight_obs(r)){
 	        	r.visible = true;
 	        	r.belief_rate = 1.0;
 	        	_obs_status.push_back(r);
@@ -298,6 +289,17 @@ bool PlannerVirtual::in_sight(const IARCRobot &r)
 	return in_sight_xy(r.x, r.y, (double)_quad_status.x, (double) _quad_status.y, (double)_quad_status.z, PARAM::angle_field_rad);
 }
 
+bool PlannerVirtual::in_sight_obs(const IARCRobot &r)
+{
+	double x = r.x;
+	double y = r.y;
+	double x0 = _quad_status.x;
+	double y0 = _quad_status.y;
+	double radius = sqrt((x - x0)*(x - x0)+(y - y0)*(y - y0));
+
+	return  radius < PARAM::radius_lidar;
+}
+
 bool PlannerVirtual::in_arena_xy(double x, double y)
 {
 	return fabs(x)<=PARAM::arena_size/2.0 && fabs(y)<=PARAM::arena_size/2.0;
@@ -418,10 +420,16 @@ IARCRobot PlannerVirtual::get_robot_by_id(uint32_t robot_id)
 int PlannerVirtual::arena2map(double x, double y, int &x_i, int &y_i)
 {
 	if(!in_arena_xy(x, y)){
-		x_i = -1;
-		y_i = -1;
+		//x_i = -1;
+		//y_i = -1;
 		LOG(ERROR) << " visit points out of arena! x, y = " <<x<<" "<<y ;
-		return 0;
+		if (fabs(x)> PARAM::arena_size / 2.0){
+			x = x/fabs(x) * PARAM::arena_size / 2.0;
+		}
+		if(fabs(y) > PARAM::arena_size / 2.){
+			y = y/ fabs(y) * PARAM::arena_size / 2.0;
+		}
+		//return 0;
 	}
 	x_i =(int)((x - PARAM::map_memory_org_x )/ PARAM::map_memory_step_x);
 	y_i = (int)((y - PARAM::map_memory_org_y)/PARAM::map_memory_step_y);
@@ -530,6 +538,7 @@ bool PlannerVirtual::segment_in_safe_area(double x1, double y1, double x2, doubl
 			P1.y = y1;
 			P2.x = x2;
 			P2.y = y2;
+			//cout<<"int obstacle: "<<k<<" "<<O.x<<" "<<O.y<<" "<<P1.x<<" "<<P1.y<<" "<<P2.x<<" "<<P2.y<<endl;
 			if(segment_in_circle(&P1, &P2, O, PARAM::radius_safe)){
 				return false;
 			}
@@ -575,20 +584,6 @@ int PlannerVirtual::map2arena(int x_i, int y_i, double &x, double &y)
 	x = ((double)x_i) * PARAM::map_memory_step_x + PARAM::map_memory_org_x;
 	y = ((double)y_i) * PARAM::map_memory_step_y + PARAM::map_memory_org_y;
 
-	return 0;
-}
-
-
-int PlannerVirtual::save_map()
-{
-	if ( _fp_map == NULL) return 0;
-	fprintf(_fp_map, "%d\n", arena_time_now());
-	for(int i = 0; i< _map_size_x; i++){
-		for(int j= 0; j< _map_size_y; j++){
-			fprintf(_fp_map, "%.2lf ", _map_memory[i][j]);
-		}
-		fprintf(_fp_map, "\n");
-	}
 	return 0;
 }
 

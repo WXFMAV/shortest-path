@@ -27,7 +27,6 @@ public:
     std::vector<IARCRobot> _obs_status;
     IARCQuad _quad_status;
     std::map<int, IARCRobot> _tgts_saved;
-    FILE *_fp_map;
     std::vector<std::vector<double>> _map_memory;
     int32_t _map_size_x;
     int32_t _map_size_y;
@@ -52,6 +51,7 @@ public:
     int map2arena(int x_i, int y_i, double &x, double &y);
     bool in_grid_map(int xi, int yi);
     bool in_sight(const IARCRobot &r);
+    bool in_sight_obs(const IARCRobot &r);
     bool in_sight_xy(double x, double y, double x0, double y0, double h0, double angle_rad);
     bool in_arena(const IARCRobot & r);
     bool in_arena_xy(double x, double y);
@@ -61,7 +61,6 @@ public:
     IARCRobot get_robot_by_id(uint32_t robot_id);
     IARCRobot get_saved_robot_by_id(uint32_t robot_id);
     int set_saved_robot(const std::vector<IARCRobot> &tgt);
-    int save_map();
     double robot_dis(const IARCRobot &r1, const IARCRobot &r2);
     uint32_t get_time_sendcmd(const iarc_arena_simulator::IARCTask &task);
     bool found_tgt();

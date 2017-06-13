@@ -85,13 +85,13 @@ int main(int argc,char **argv)
     time_start=ros::Time::now();
 
     ros::Publisher obstacles_pub = 
-    	nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles", 10);
+    	nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles", 10);
     ros::Publisher targets_pub = 
-    	nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets",10);
+    	nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCTargets",10);
     ros::Subscriber cmd_sub = 
-    	nh.subscribe<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand",10,IARCCommand_callback);
+    	nh.subscribe<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand",10,IARCCommand_callback);
     ros::Subscriber quad_sub =
-        nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus",10, IARCQuadStatus_callback);
+        nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus",10, IARCQuadStatus_callback);
 
     fp=fopen(file_name_arena_info.c_str(),"w");
     if(fp==NULL)

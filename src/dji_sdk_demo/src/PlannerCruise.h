@@ -42,6 +42,7 @@ private:
     std::vector<iarc_arena_simulator::IARCTask> _list_saved;
     FILE *_fp_task;
     FILE *_fp_task_env;
+    FILE *_fp_map;
     uint32_t _loop_start_time;
 private:
     int plan_maxq_op(iarc_arena_simulator::IARCTasksList &taskslist);
@@ -51,6 +52,7 @@ private:
     int tree_search(int depth,double coef);
     int tree_search_simple(int depth, double coef);
     int tree_search_map(int depth, double coef);
+    int tree_search_map2(int depth, double coef);
     IARCRobot tree_predictor_zero_input(uint32_t rtime, IARCRobot robot, double final_turn = 0.0);
     double reward_tgt_one(const IARCRobot &robot);
     double reward(uint32_t time_ms,  const std::vector<IARCRobot> &targets, const std::vector<IARCRobot> &obstacles, const IARCRobot &mav_robot, robotcmd_kind cmd);
@@ -63,6 +65,7 @@ private:
     int legal_task(const iarc_arena_simulator::IARCTask &node1,const iarc_arena_simulator::IARCTask &node2);
     bool require_generate_list();
     iarc_arena_simulator::IARCTask get_current_task();
+    int save_map();
 };
 
 #endif /* DJI_SDK_DEMO_SRC_PLANNERCRUISE_H_ */

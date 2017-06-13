@@ -50,13 +50,14 @@ int main(int argc, char **argv)
     ros::Rate r0(PARAM::ros_rate_path);
     int cnt=0;
 
-    thePath.test_main();
-    //thePath.test_main_plan_dijkstra();
+    iarc_arena_simulator::IARCWaypointsList wp_list;
+
+    //thePath.test_main();
+    thePath.test_main_plan_dijkstra(wp_list);
 
     while(ros::ok() && 0)
     {
             cnt++;
-            iarc_arena_simulator::IARCWaypointsList wp_list;
             //thePath.plan(wp_list);
             thePath.test_main_plan_dijkstra(wp_list);
             if(wp_list.list.size()>0){

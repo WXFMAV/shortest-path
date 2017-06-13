@@ -513,7 +513,7 @@ bool PlannerPath::generate_path(std::vector<iarc_arena_simulator::IARCWaypoint> 
 	int i;
 	for( i=1; i < curve.size() -1; i++){
 		double dlen = norm(curve[i].x - _quad_status.x, curve[i].y - _quad_status.y);
-		if( dlen > 0.3) break;
+		if( dlen > 0.5) break;
 		time_wp = time_start + dlen / vh;
 	}
 
@@ -958,11 +958,12 @@ bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double d
 		//LOG(INFO)<<"dst con:"<<dst<<" "<<from_xi<<" "<<from_yi<<" ["<<k<<"] "<<dst_xi<<" "<<dst_yi;
 	}
 
-	if( norm(src_x - dst_x, src_y - dst_y) < 2.0){
+	//if( norm(src_x - dst_x, src_y - dst_y) < .0){
 		if(segment_in_safe_area(src_x, src_y, dst_x, dst_y)){
-			G_Graph::addEdge(graph, src, dst, G_Graph::weight_zero);
+			//cout<<"segment in safe area!"<<src_x<<" "<<src_y<<" "<<dst_x<<" "<<dst_y<<endl;
+			G_Graph::addEdge(graph, src, dst, G_Graph::weight_zero + norm(src_x - dst_x, src_y - dst_y) / 2.0);
 		}
-	}
+	//}
 /*
 	if( src_xi == dst_xi && src_yi == dst_yi){
 		if(grid_in_safe_area(src_xi, src_yi)){
@@ -979,9 +980,28 @@ bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double d
 	std::vector<int> nodes_path;
 	found = G_Graph::dijkstra(graph, src, dst, PARAM::edge_nosolution_jump,nodes_path, total_len);
 
+	//if(nodes_path.size() == 1){
+		//cout<<"path 1: "<<nodes_path[0]<<" src= "<<src<<" dst= "<<dst<<endl;
+	//}
+
+//	cout<<"path list nodes: size="<<nodes_path.size()<<endl;
+//	cout<<"src ="<<src<<" dst="<<dst<<endl;
+
+//	for(int i = 0; i<nodes_path.size(); i++){
+//		cout<<nodes_path[i]<<endl;
+//	}
+//	cout<<endl;
+
 	if(nodes_path.size() <= 0){
-		nodes_path.push_back(src);
 		nodes_path.push_back(dst);
+		nodes_path.push_back(src);
+		cout<<"quad: "<<_quad_status.x<<" "<<_quad_status.y<<endl;
+		cout<<"quadv"<<_quad_status.vx<<" "<<_quad_status.vy<<endl;
+		cout<<"obs: "<<_obs_status[0].x<<" "<<_obs_status[0].y<<endl;
+		cout<<"obs: "<<_obs_status[1].x<<" "<<_obs_status[1].y<<endl;
+		cout<<"obs: "<<_obs_status[2].x<<" "<<_obs_status[2].y<<endl;
+		cout<<"obs: "<<_obs_status[3].x<<" "<<_obs_status[3].y<<endl;
+		cout<<"dst: "<< dst_x<<" "<<dst_y<<endl;
 		LOG(ERROR) <<"no path found!";
 	}
 	//create path
@@ -1002,7 +1022,7 @@ bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double d
 
 		path.push_back(pt);
 
-	//	cout<<"path list"<<endl;
+//		cout<<"path list"<<endl;
 		int xi, yi;
 		pt.x = src_x; pt.y = src_y;
 		path.push_back(pt); // as the beging point..
@@ -1013,28 +1033,21 @@ bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double d
 			get_edge_first_grid_by_id(nodes_path[k], xi, yi);
 			map2arena(xi, yi, pt.x, pt.y);
 			path.push_back(pt);
-			//cout<<nodes_path[k]<<" "<<pt.x<<" "<<pt.y<<" "<<get_k_of_edge_id(nodes_path[k])<<endl;
+//			cout<<nodes_path[k]<<" "<<pt.x<<" "<<pt.y<<" "<<get_k_of_edge_id(nodes_path[k])<<endl;
 		}
 		//cout<<endl;
-		if(nodes_path.size() == 2){
-			//to avoid an empty curve is generate.
-			pt.x = dst_x; pt.y = dst_y;
-			path.push_back(pt);
-		}
-
-
-		//LOG(ERROR) <<"found = "<<found;
 		if(found){
 			pt.x = dst_x;
 			pt.y = dst_y;
 		}
 		else{
-			if(nodes_path.size() > 2){
-				get_edge_second_grid_by_id(nodes_path[1], xi, yi);
+			if(nodes_path[0] != dst){
+				get_edge_second_grid_by_id(nodes_path[0], xi, yi);
 				map2arena(xi, yi, pt.x, pt.y);
 			}
-			else{
-				pt.x = dst_x; pt.y = dst_y;
+		else{
+				pt.x = dst_x;
+				pt.y = dst_y;
 			}
 		}
 		path.push_back(pt);
@@ -1042,6 +1055,12 @@ bool PlannerPath::graph_planing_path(std::vector<IARC_POSITION> &path,  double d
 	}
 
 	freeGraph(graph);
+
+//cout<<"path size="<<path.size()<<endl;
+//	for(int k = 0; k< path.size(); k++){
+//		cout<<path[k].x<<" "<<path[k].y<<endl;
+//	}
+//	cout<<endl;
 
 	return found;
 }
@@ -1176,8 +1195,8 @@ int PlannerPath::test_main_plan_dijkstra(iarc_arena_simulator::IARCWaypointsList
 	obs->header.frame_id = PARAM::str_arena_frame;
 	obs->header.stamp = ros::Time::now();
 	theta = 0.0;
-	pos.position.x = 2.0;
-	pos.position.y = 2.0;
+	pos.position.x = 1.0;
+	pos.position.y = 1.0;
 	pos.position.z = 0.0;
 	pos.orientation.w = sin((-theta + M_PI) / 2.0);
 	pos.orientation.x = 0.0;
@@ -1185,7 +1204,6 @@ int PlannerPath::test_main_plan_dijkstra(iarc_arena_simulator::IARCWaypointsList
 	pos.orientation.z = cos((-theta + M_PI) / 2.0);
 	obs->poses.push_back(pos);
 	this->update_obs(obs);
-
 
 	boost::shared_ptr<iarc_arena_simulator::IARCTasksList> tasklist(new iarc_arena_simulator::IARCTasksList);
 	uint32_t time_beg = arena_time_now();
@@ -1196,7 +1214,7 @@ int PlannerPath::test_main_plan_dijkstra(iarc_arena_simulator::IARCWaypointsList
 	task.task_seq = 1;
 	//tasklist->list.push_back(task);
 	task = ::make_task_type_reach(PARAM::str_arena_frame,  ros::Time::now(),
-			4.0, 4.0, 2.0, time_beg + 1000, time_beg +1000 + 5000);
+			0.0, 0.0, 2.0, time_beg + 1000, time_beg +1000 + 5000);
 	task.task_type = type_cruise;
 	task.task_seq = 2;
 	tasklist->list.push_back(task);
@@ -1204,6 +1222,14 @@ int PlannerPath::test_main_plan_dijkstra(iarc_arena_simulator::IARCWaypointsList
 	}
 
 	this->plan(wplist);
+
+	FILE *fp_path = fopen(PARAM::file_name_edgepath.c_str(),"w");
+	cout<<"path size: "<<wplist.list.size()<<endl;
+	for(int i = 0; i < wplist.list.size(); i++){
+		cout<<wplist.list[i].x <<" "<< wplist.list[i].y<<endl;
+		fprintf(fp_path, "%.2lf %.2lf\n", wplist.list[i].x, wplist.list[i].y);
+	}
+	fclose(fp_path);
 
 	return 0;
 }

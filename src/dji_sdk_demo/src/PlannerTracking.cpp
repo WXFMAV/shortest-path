@@ -27,6 +27,7 @@ PlannerTracking::PlannerTracking() {
     //_path_list.clear();
     //_time_list.clear();
     _fp_tracking = NULL;
+    _fp_controller = NULL;
     _seq_saved = -1;
     _saved_sent_cmd_task_seq = -1;
 }
@@ -40,6 +41,10 @@ PlannerTracking::~PlannerTracking() {
     if (_fp_tracking != NULL){
         fclose(_fp_tracking);
         _fp_tracking = NULL;
+    }
+    if (_fp_controller!=NULL){
+    	fclose(_fp_controller);
+    	_fp_controller = NULL;
     }
 }
 
@@ -58,7 +63,12 @@ int PlannerTracking::init()
     _fp_tracking = fopen(PARAM::file_name_tracking.c_str(),"w");
     if ( _fp_tracking ==NULL){
         LOG(ERROR) << "can not open file: "<<PARAM::file_name_tracking.c_str();
-        return -1;
+        //return -1;
+    }
+    _fp_controller = fopen(PARAM::file_name_controller.c_str(),"w");
+    if( _fp_controller == NULL){
+    	LOG(ERROR) <<" can not open file: "<<PARAM::file_name_controller.c_str();
+    	//return -1;
     }
     _status = OK;
     _state_x.setZero(state_n);
@@ -203,6 +213,10 @@ int PlannerTracking::gen_control_cmd(IARC_COMMAND &cmd)
                 _control_u[0], _control_u[1], _control_u[2], cmd.mav_vyawdegree,
 				cmd.robot_turn_id, cmd.robot_turn_kind);
     }
-
+    if( _fp_controller != NULL){
+        fprintf(_fp_controller,"%d,task_seq:%d wp_pos:%d waypoint(%.2lf,%.2lf,t:%d) mav(%.2lf %.2lf) u(%.2lf %.2lf) cmd(%d, %d)\n",
+    		time_now, task.task_seq, _pos_now, wp.x, wp.y, wp.tms,
+                _state_x[0], _state_x[1], _control_u[0], _control_u[1], cmd.robot_turn_id, cmd.robot_turn_kind);
+    }
     return 0;
 }

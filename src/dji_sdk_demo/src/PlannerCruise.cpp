@@ -38,6 +38,10 @@ PlannerCruise::~PlannerCruise() {
         fclose(_fp_task_env);
         _fp_task_env = NULL;
     }
+	if ( _fp_map != NULL){
+		fclose(_fp_map);
+		_fp_map = NULL;
+	}
     _loop_start_time = 0;
 }
 
@@ -66,6 +70,11 @@ int PlannerCruise::init(){
     if( _fp_task == NULL){
         LOG(ERROR) << "file open error!" << PARAM::file_name_task.c_str();
     }
+    _fp_map = NULL;
+    _fp_map = fopen(PARAM::file_name_map.c_str(), "w");
+     if ( _fp_map == NULL){
+     	LOG(ERROR) << "file open error! : " << PARAM::file_name_map.c_str();
+     }
 
     return 0;
 }
@@ -187,6 +196,7 @@ bool PlannerCruise::require_generate_list()
 			LOG(INFO) <<"timenow= "<<timenow<< "require generate, because of :"<<" found target when cruise.";
 			return true;
 		}
+		return false;
 	}break;
 	case type_interact:{
 		//this condition is not suitable, for their are other changes of other robots.
@@ -276,7 +286,8 @@ int PlannerCruise::generate_list(std::vector<iarc_arena_simulator::IARCTask> &ta
 //    tree_search_simple(0, 1.0);
     //LOG(ERROR) << "Planning by map";
 
-    tree_search_map(0, 1.0);
+//    tree_search_map(0, 1.0);
+    tree_search_map2(0, 1.0);
 
     taskslist.clear();
     if(_tree_best.size()>1)
@@ -487,6 +498,154 @@ int PlannerCruise::tree_search_simple(int depth, double coef)
 
 	return 0;
 }
+
+int PlannerCruise::tree_search_map2(int depth, double coef)
+{
+	   if(_tree_value >_tree_best_value)
+	    {
+	          _tree_best_value = _tree_value;
+	          _tree_best = _tree;
+	    }
+
+	    if(depth> PARAM::tree_search_max_depth)
+	   //if(depth> 1)
+	    {
+	          return 0;
+	    }
+
+	    int pos = _tree.size()-1;
+	    uint32_t loop_start_time=_tree[pos].time_end;
+
+	    for(int k = -1; k < (int)_tgt_status.size() && k < PARAM::tree_search_max_target_counts; k++)
+	    {
+	    	  if( k ==  -1 )
+	    	  {
+	    		//  for(int t = loop_start_time / 1000 + 1; t < loop_start_time / 1000 + PARAM::time_cruise_dettime/1000; t++)
+	    		  int t = loop_start_time/1000 + PARAM::time_cruise_det_ms/1000;
+	    		  if( depth == 0 && _tgt_status.size() == 0)
+	    		  {
+	    			//  if(PARAM::shouldCruise[ t % (PARAM::period_turn_ms / 1000)] == true)
+	    			  {
+	    				  IARCTask task;
+	    				  double res_saved = 0.0, res = 0.0;
+
+	    				  task.task_type = type_cruise;
+	    				  task.time_start = _tree[pos].time_end;
+	    				  task.time_end = t * 1000;
+	    				  task.robot_id = robot_arena;
+	    				  task.robot_cmd = turn_none;
+
+	    				  double bestx, besty, bestz;
+
+	    				  res = reward_map(_tree, (double)t, bestx, besty, bestz);
+
+	    				  task.task_value = res;
+	    				  _tree_value = _tree_value + coef * PARAM::tree_search_gama * res;
+	    				  task.final_pose.position.x = bestx; //expect final robot position is expect final mav position
+	    				  task.final_pose.position.y = besty; //final - z position is not defined..
+	    				  task.final_pose.position.z = bestz;
+	                      if(legal_task(_tree[pos], task) > 0)
+	                      {
+	                            _tree.push_back(task);
+	                            tree_search_map2(depth + 1, coef * PARAM::tree_search_gama);
+	                            _tree.pop_back();
+	                      }
+	                      _tree_value = _tree_value - coef * PARAM::tree_search_gama * res;
+	    			  }
+	    		  }
+	    		  continue;
+	    	  }
+
+	          if( !in_arena(_tree_robot_predictor[k]) || will_in_sheephold(_tree_robot_predictor[k]) ) continue;
+
+	          for(int t = loop_start_time/1000 + 1; t < loop_start_time/1000 + PARAM::period_turn_ms / 1000; t++)
+	          {
+	                if(PARAM::shouldExpand[t % (PARAM::period_turn_ms / 1000)] == true)
+	                {
+	                      IARCRobot robot, robot_saved;
+	                      IARCTask task;
+	                      double res_saved = 0.0 , res = 0.0;
+
+	                      //TURN_180
+	                      task.task_type = type_interact;
+	                      task.time_start = _tree[_tree.size() - 1].time_end;
+	                      task.time_end = t * 1000 + PARAM::time_turn_180_ms;
+	                      task.robot_id = _tgt_status[k].id;
+	                      task.robot_cmd = turn_180;
+	                      robot = _tree_robot_predictor[k];
+	                      robot_saved = robot;
+	                      robot = tree_predictor_zero_input(task.time_end - PARAM::time_turn_180_ms, robot, M_PI);
+	                      robot.time_ms = task.time_end;
+
+	                      _tree_robot_predictor[k]=robot;
+	                    //  res = reward(robot.time_ms,  _tree_robot_predictor, _obs_status, robot, (robotcmd_kind)task.robot_cmd);
+	                      res = reward2(robot.time_ms, robot, _obs_status, (robotcmd_kind)task.robot_cmd);
+	                      task.task_value = res;
+	                      _tree_value = _tree_value + coef * PARAM::tree_search_gama * res;
+
+	                      task.final_pose.position.x = robot.x; //expect final robot position is expect final mav position
+	                      task.final_pose.position.y = robot.y; //final - z position is not defined..
+	                      task.final_pose.position.z =1.0;
+
+	                      if(legal_task(_tree[pos], task) > 0)
+	                      {
+	                            _tree.push_back(task);
+	                            _tree_predictor[k].push_back(task);
+
+	                        //    LOG(INFO) << "expand depth="<<depth<<" id="<<task.robot_id << " cmd=" << task.robot_cmd
+	                        //            << " reward="<<res<< " exptime="<<task.time_end;
+
+	                            tree_search_map2(depth + 1, coef * PARAM::tree_search_gama);
+
+	                            _tree.pop_back();
+	                            _tree_predictor[k].pop_back();
+	                      }
+	                      _tree_robot_predictor[k] = robot_saved;
+	                      _tree_value = _tree_value - coef * PARAM::tree_search_gama * res;
+
+	                      //TURN_45
+	                      task.task_type = type_interact;
+	                      task.time_start = _tree[_tree.size() - 1].time_end;
+	                      task.time_end = t * 1000 + PARAM::time_turn_45_ms;
+	                      task.robot_id =  _tgt_status[k].id;
+	                      task.robot_cmd = turn_45;
+	                      robot = _tree_robot_predictor[k];
+	                      robot_saved = robot;
+	                      robot = tree_predictor_zero_input(task.time_end - PARAM::time_turn_45_ms, robot, M_PI/4);
+	                      robot.time_ms = task.time_end;
+
+	                      _tree_robot_predictor[k]=robot;
+	//                      res = reward(robot.time_ms,  _tree_robot_predictor, _obs_status, robot, (robotcmd_kind)task.robot_cmd);
+	                      res = reward2(robot.time_ms, robot, _obs_status, (robotcmd_kind)task.robot_cmd);
+	                      task.task_value = res;
+	                      _tree_value = _tree_value + coef * PARAM::tree_search_gama * res;
+
+	                      task.final_pose.position.x = robot.x;
+	                      task.final_pose.position.y = robot.y;
+	                      task.final_pose.position.z =1.0;
+
+	                      if(legal_task(_tree[pos], task)>0)
+	                      {
+	                            _tree.push_back(task);
+	                            _tree_predictor[k].push_back(task);
+
+	                     //       LOG(INFO) << "expand depth="<<depth<<" id="<<task.robot_id << " cmd=" << task.robot_cmd
+	                       //                                         << " reward="<<res<< " exptime="<<task.time_end;
+
+	                            tree_search_map2(depth+1,coef * PARAM::tree_search_gama);
+
+	                            _tree.pop_back();
+	                            _tree_predictor[k].pop_back();
+	                      }
+	                      _tree_robot_predictor[k]=robot_saved;
+	                      _tree_value = _tree_value - coef * PARAM::tree_search_gama * res;
+	                }
+	          }
+	    }
+
+	return 0;
+}
+
 
 
 int PlannerCruise::tree_search_map(int depth, double coef)
@@ -1002,3 +1161,17 @@ int PlannerCruise::legal_task(const IARCTask &node1,const IARCTask &node2)
 */
       return 0;
 }
+
+int PlannerCruise::save_map()
+{
+	if ( _fp_map == NULL) return 0;
+	fprintf(_fp_map, "%d\n", arena_time_now());
+	for(int i = 0; i< _map_size_x; i++){
+		for(int j= 0; j< _map_size_y; j++){
+			fprintf(_fp_map, "%.2lf ", _map_memory[i][j]);
+		}
+		fprintf(_fp_map, "\n");
+	}
+	return 0;
+}
+

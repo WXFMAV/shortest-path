@@ -1,13 +1,14 @@
+进入工作空间
+cd workspace/hehualin_ws/IARC
+建立工作环境
+source me
 
 ROS转化成eclipse project 命令
 catkin_make --force-cmake -G"Eclipse CDT4 - Unix Makefiles"
 cmake -G"Eclipse CDT4 - Unix Makefiles" ..
 
-打开eclipse
 打开eclipse并进行处理
 /usr/lib/eclipse/eclipse
-进入工作空间
-cd workspace/hehualin_ws/IARC
 
 roslaunch iarc_arena_simulator simulator.launch
 roslaunch dji_sdk_demo dji_sdk_client_2layer.launch
@@ -18,7 +19,7 @@ roslaunch iarc_arena_simulator simulator_cruise.launch
 rosrun dji_sdk_demo dji_sdk_test_bazier
 rosrun dji_sdk_demo dji_sdk_test_graph
 rosrun dji_sdk_demo dji_sdk_test_planner_path
-bash run_test.bash
+bash launch.bash
 
 
 使用GitHub
@@ -29,6 +30,8 @@ git commit -m "balabala"
 推送到远程主机
 git push -u origin master
 
+启动仿真界面
+rosrun rviz rviz
 
 打开driver
 roslaunch velodyne_driver pcap_nodelet_hertz.test

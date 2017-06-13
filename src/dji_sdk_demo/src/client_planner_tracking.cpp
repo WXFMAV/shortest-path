@@ -45,13 +45,13 @@ int main(int argc, char **argv)
     arena_set_startnow2(filename);
     LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
-    robotcmd_pub = nh.advertise<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand", 10);
-    path_pub = nh.advertise<nav_msgs::Path>("/iarc_arena/nav_path", 10);
-    mav_pub = nh.advertise<geometry_msgs::PoseStamped>("/iarc_arena/IARCMav", 10);
-    quad_status_pub = nh.advertise<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus", 10);
-    waypoints_path_pub = nh.advertise<nav_msgs::Path>("/iarc_arena/waypoints_path", 10);
-    waypoints_list_sub = nh.subscribe<iarc_arena_simulator::IARCWaypointsList>("/iarc_arena/IARCWaypointsList", 10, IARCWaypointsList_callback);
-    tasks_list_sub = nh.subscribe<iarc_arena_simulator::IARCTasksList>("/iarc_arena/IARCTasksList",10,IARCTasksList_callback);
+    robotcmd_pub = nh.advertise<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand", 10);
+    path_pub = nh.advertise<nav_msgs::Path>("iarc_arena/nav_path", 10);
+    mav_pub = nh.advertise<geometry_msgs::PoseStamped>("iarc_arena/IARCMav", 10);
+    quad_status_pub = nh.advertise<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus", 10);
+    waypoints_path_pub = nh.advertise<nav_msgs::Path>("iarc_arena/waypoints_path", 10);
+    waypoints_list_sub = nh.subscribe<iarc_arena_simulator::IARCWaypointsList>("iarc_arena/IARCWaypointsList", 10, IARCWaypointsList_callback);
+    tasks_list_sub = nh.subscribe<iarc_arena_simulator::IARCTasksList>("iarc_arena/IARCTasksList",10,IARCTasksList_callback);
 
     if( theQuad.init(model_simulator, nh) < 0){
         LOG(ERROR) << "Quadrotor model init error!";

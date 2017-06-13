@@ -45,7 +45,12 @@ void arena_set_startnow()
     }
     time_start = ros::Time::now();
 
+    ros::Time time_offset;
     //ros::package::getPath("dji_sdk_demo")+"/../../build/test_results"
+    uint32_t off_nsec;
+    off_nsec = 200*1000000;
+    time_offset.sec =time_start.sec +  (time_start.nsec + off_nsec)/1000000000;
+    time_offset.nsec = (time_start.nsec + off_nsec) % 1000000000;
 
     std::string filename = ros::package::getPath("dji_sdk_demo")+"/../../build/test_results/rec_ast_tracking.txt";
     FILE * fp = fopen(filename.c_str(),"w");
@@ -53,7 +58,7 @@ void arena_set_startnow()
     	printf(" error to open file for write:%s\n", filename.c_str());
     	exit(-1);
     }
-    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fprintf(fp, "%ud %ud\n", time_offset.sec,time_offset.nsec);
     fflush(fp);
     fclose(fp);
 
@@ -63,7 +68,7 @@ void arena_set_startnow()
     	printf(" error to open file for write:%s\n", filename.c_str());
     	exit(-1);
     }
-    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fprintf(fp, "%ud %ud\n", time_offset.sec,time_offset.nsec);
     fflush(fp);
     fclose(fp);
 
@@ -73,7 +78,7 @@ void arena_set_startnow()
     	printf(" error to open file for write:%s\n", filename.c_str());
     	exit(-1);
     }
-    fprintf(fp, "%ud %ud\n", time_start.sec,time_start.nsec);
+    fprintf(fp, "%ud %ud\n", time_offset.sec,time_offset.nsec);
     fflush(fp);
     fclose(fp);
 
@@ -157,7 +162,7 @@ int main(int argc,char **argv)
     std::cout<<FLAGS_log_dir<<std::endl;
     LOG(INFO) << "record info to this file";
 
-    ros::init(argc, argv, "iarc_arena");
+    ros::init(argc, argv, "iarc_arena_simulator");
     ros::NodeHandle nh;
 
     time_start=ros::Time::now();
@@ -166,13 +171,13 @@ int main(int argc,char **argv)
     LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
     ros::Publisher obstacles_pub = 
-    	nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles", 10);
+    	nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles", 10);
     ros::Publisher targets_pub = 
-    	nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets",10);
+    	nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCTargets",10);
     ros::Subscriber cmd_sub = 
-    	nh.subscribe<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand",10,IARCCommand_callback);
+    	nh.subscribe<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand",10,IARCCommand_callback);
     ros::Subscriber quad_sub =
-        nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus",10, IARCQuadStatus_callback);
+        nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus",10, IARCQuadStatus_callback);
 
     fp=fopen(file_name_arena_info.c_str(),"w");
     if(fp==NULL)
@@ -232,7 +237,7 @@ int main(int argc,char **argv)
     int cnt=0;
 
     while(ros::ok())
-    {   
+    {
         if (TimePassedMs(time_start,ros::Time::now())>600000)
            break;
         cnt++;
@@ -300,7 +305,8 @@ int main(int argc,char **argv)
 									
 				//printf("%d %d %d %d %.6lf %d\n",time_now,k,kind_turn[k],time_turn[k],de,time_add);								
 				trg_theta[k]=trg_theta[k]+de;						
-				trg_theta[k]=trg_theta[k]+float(rand()%1001-500)/50000.0;						
+
+				trg_theta[k]=trg_theta[k]+float(rand()%1001-500)/50000.0 * 3.0;					//float(rand()%1001-500)/50000.0*3.0
 				theta=trg_theta[k];
 						
 				trg[k].position.x=trg[k].position.x+dT*v0*cos(theta);
@@ -324,7 +330,7 @@ int main(int argc,char **argv)
 			if(!OutofBound(obs[k]))
 			{
 				float theta;
-				obs_theta[k]=obs_theta[k]+float(rand()%1001-500)/500000.0;			
+				obs_theta[k]=obs_theta[k]+float(rand()%1001-500)/500000.0 * 5.0;
 				obs_theta[k]=obs_theta[k]+dT*v0/r0;
 				theta=obs_theta[k];
 

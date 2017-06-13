@@ -51,17 +51,17 @@ int main(int argc, char **argv)
     arena_set_startnow2(filename);
     LOG(ERROR) <<" arena_time_now "<< arena_time_now();
 
-    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("/iarc_arena/IARCCommand", 10, IARCCommand_callback);
-    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("/iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
-    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCObstacles",10,IARCObstacles_callback);
-    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("/iarc_arena/IARCTargets",10,IARCTargets_callback);
-    tasks_list_pub = nh.advertise<iarc_arena_simulator::IARCTasksList>("/iarc_arena/IARCTasksList",10);
-    tasks_pub = nh.advertise<geometry_msgs::PoseArray>("/iarc_arena/IARCTask",10);
-    view_pub = nh.advertise<geometry_msgs::PolygonStamped>("/iarc_arena/IARCView",10);
-    viewdanger_pub[0] = nh.advertise<geometry_msgs::PolygonStamped>("/iarc_arena/IARCView_obs1",10);
-    viewdanger_pub[1] = nh.advertise<geometry_msgs::PolygonStamped>("/iarc_arena/IARCView_obs2",10);
-    viewdanger_pub[2] = nh.advertise<geometry_msgs::PolygonStamped>("/iarc_arena/IARCView_obs3",10);
-    viewdanger_pub[3] = nh.advertise<geometry_msgs::PolygonStamped>("/iarc_arena/IARCView_obs4",10);
+    cmd_sub = nh.subscribe<iarc_arena_simulator::IARCCommand>("iarc_arena/IARCCommand", 10, IARCCommand_callback);
+    quad_sub = nh.subscribe<iarc_arena_simulator::IARCQuadStatus>("iarc_arena/IARCQuadStatus",10, QuadStatus_callback);
+    obstacles_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCObstacles",10,IARCObstacles_callback);
+    targets_sub = nh.subscribe<geometry_msgs::PoseArray>("iarc_arena/IARCTargets",10,IARCTargets_callback);
+    tasks_list_pub = nh.advertise<iarc_arena_simulator::IARCTasksList>("iarc_arena/IARCTasksList",10);
+    tasks_pub = nh.advertise<geometry_msgs::PoseArray>("iarc_arena/IARCTask",10);
+    view_pub = nh.advertise<geometry_msgs::PolygonStamped>("iarc_arena/IARCView",10);
+    viewdanger_pub[0] = nh.advertise<geometry_msgs::PolygonStamped>("iarc_arena/IARCView_obs1",10);
+    viewdanger_pub[1] = nh.advertise<geometry_msgs::PolygonStamped>("iarc_arena/IARCView_obs2",10);
+    viewdanger_pub[2] = nh.advertise<geometry_msgs::PolygonStamped>("iarc_arena/IARCView_obs3",10);
+    viewdanger_pub[3] = nh.advertise<geometry_msgs::PolygonStamped>("iarc_arena/IARCView_obs4",10);
     theCruise.init();
 
     sensor_msgs::Range rg;
@@ -98,6 +98,13 @@ int main(int argc, char **argv)
             		if(k < theCruise._obs_status.size()){
             			geometry_msgs::PolygonStamped view;
             			GenerateDangerView(theCruise._obs_status[k], view);
+            			viewdanger_pub[k].publish(view);
+            		}
+            		else{
+            			geometry_msgs::PolygonStamped view;
+            			view.header.frame_id = PARAM::str_arena_frame;
+            			view.header.stamp= ros::Time::now();
+            			view.polygon.points.clear();
             			viewdanger_pub[k].publish(view);
             		}
             	}
@@ -173,9 +180,9 @@ void GenerateTaskViewer(const iarc_arena_simulator::IARCTasksList &tasks_list, g
 			p.position.y = tasks_list.list[k].final_pose.position.y;
 			p.position.z = 2.0;
 			p.orientation.x = 0.0;
-			p.orientation.y = sin( -M_PI / 4);
+			p.orientation.y = sin(0.0);
 			p.orientation.z = 0.0;
-			p.orientation.w = cos(- M_PI / 4);
+			p.orientation.w = cos(0.0);
 			tasks.poses.push_back(p);
 		}
 	}
