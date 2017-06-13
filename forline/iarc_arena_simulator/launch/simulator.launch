@@ -1,4 +1,0 @@
-<launch>
-	<node pkg="iarc_arena_simulator" type="iarc_arena_simulator_node" name="iarc_arena_simulator_node" required="true">
-	</node>
-</launch>

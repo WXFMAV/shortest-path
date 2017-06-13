@@ -1,4 +1,0 @@
-<launch>
-	<node pkg="dji_sdk_demo" type="dji_sdk_client_nocmd" name="dji_sdk_client_nocmd" output="screen">
-	</node>
-</launch>

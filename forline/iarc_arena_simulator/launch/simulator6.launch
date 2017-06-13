@@ -1,6 +1,0 @@
-<launch>
-	<node pkg="iarc_arena_simulator" type="iarc_arena_simulator_node_rand" name="iarc_arena_simulator_node_rand" required="true">
-	</node>
-	<node pkg="dji_sdk_demo" type="dji_sdk_client4" name="dji_sdk_client5" output="screen">
-	</node>
-</launch>

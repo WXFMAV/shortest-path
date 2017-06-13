@@ -37,7 +37,7 @@ case $1 in
     push)
         git add .
         git commit -m "upate files"
-        git push origin master   
+        git push -u origin master   
     ;;
     all|*)
 esac
