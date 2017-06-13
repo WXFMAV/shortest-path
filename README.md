@@ -3,7 +3,7 @@ Dijkstra, shortest path, bazier, smooth
 
 进入工作空间
 
-cd workspace/hehualin_ws/IARC
+cd ~/catkin_ws
 
 建立工作环境
 
@@ -18,6 +18,8 @@ cmake -G"Eclipse CDT4 - Unix Makefiles" ..
 打开eclipse并进行处理
 
 /usr/lib/eclipse/eclipse
+
+典型launch启动命令
 
 roslaunch iarc_arena_simulator simulator.launch
 
@@ -36,6 +38,8 @@ rosrun dji_sdk_demo dji_sdk_test_bazier
 rosrun dji_sdk_demo dji_sdk_test_graph
 
 rosrun dji_sdk_demo dji_sdk_test_planner_path
+
+集成启动脚本
 
 bash launch.bash
 
